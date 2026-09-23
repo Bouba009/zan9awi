@@ -1,102 +1,557 @@
-package com.zangaoui.game.model
+name: Build Zangaoui Pure Kotlin Game
 
-import java.io.Serializable
-import kotlin.math.cos
-import kotlin.math.sin
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-enum class CharacterType(
-    val title: String,
-    val maxHp: Int,
-    val baseSpeed: Float,
-    val abilityName: String,
-    val abilityCooldownMs: Long,
-    val colorPrimary: Int,
-    val colorSecondary: Int
-) {
-    SPORTY("الشاب الرياضي", 100, 10f, "تسارع خارق (Sprint)", 4000L, 0xFFE74C3C.toInt(), 0xFFFFFFFF.toInt()),
-    ANGRY_UNCLE("العم الغاضب", 160, 6.5f, "صرخة الزنقة (Stun AOE)", 7000L, 0xFF34495E.toInt(), 0xFF95A5A6.toInt()),
-    CURIOUS_NEIGHBOR("الجار الفضولي", 90, 9f, "تخفي وسرعة (Stealth)", 6000L, 0xFF8E44AD.toInt(), 0xFFF1C40F.toInt()),
-    SHOPKEEPER("صاحب الحانوت", 130, 7f, "درع الصناديق (Shield)", 8000L, 0xFF27AE60.toInt(), 0xFFE67E22.toInt()),
-    WORKER("العامل الكادح", 140, 7.5f, "ضربة المطرقة (Heavy Smash)", 5000L, 0xFFD35400.toInt(), 0xFF2C3E50.toInt()),
-    FAST_GUY("الفيسبا السريع", 80, 11.5f, "مراوغة خاطفة (Blink)", 3500L, 0xFFF39C12.toInt(), 0xFFE74C3C.toInt()),
-    HEAVY_GUY("البولفارد الثقيل", 200, 5.5f, "زلزال الحومة (Ground Slam)", 9000L, 0xFF7F8C8D.toInt(), 0xFF16A085.toInt())
-}
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-enum class WeaponType(
-    val weaponName: String,
-    val damage: Int,
-    val range: Float,
-    val speed: Float,
-    val cooldownMs: Long,
-    val isThrowable: Boolean,
-    val color: Int
-) {
-    FIST("قبضة اليد", 15, 60f, 0f, 400L, false, 0xFFF1C40F.toInt()),
-    STONE("حجر الدروج", 25, 450f, 16f, 600L, true, 0xFF7F8C8D.toInt()),
-    BRICK("آجورة حمراء", 40, 380f, 14f, 900L, true, 0xFFC0392B.toInt()),
-    PAN("مقلاة الوالدة", 50, 80f, 0f, 750L, false, 0xFF2C3E50.toInt()),
-    BIDON("بيدون ماء", 35, 300f, 11f, 1200L, true, 0xFF2980B9.toInt()),
-    GHRAF("غراف العرس", 30, 90f, 0f, 500L, false, 0xFFBDC3C7.toInt()),
-    POT("قدر الضغط", 60, 110f, 0f, 1100L, false, 0xFF95A5A6.toInt()),
-    BROOM("مكنسة بالية", 20, 120f, 0f, 450L, false, 0xFFD35400.toInt()),
-    CHAIR("كرسي قهوة بلاستيك", 45, 250f, 12f, 1300L, true, 0xFF27AE60.toInt()),
-    WATER_BOTTLE("قنينة كوندية", 20, 500f, 18f, 500L, true, 0xFF1ABC9C.toInt())
-}
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-data class PlayerState(
-    val id: String,
-    var name: String,
-    var characterType: CharacterType,
-    var x: Float,
-    var y: Float,
-    var angle: Float = 0f,
-    var hp: Int = 100,
-    var maxHp: Int = 100,
-    var score: Int = 0,
-    var kills: Int = 0,
-    var deaths: Int = 0,
-    var isDashing: Boolean = false,
-    var isShielded: Boolean = false,
-    var currentWeapon: WeaponType = WeaponType.FIST,
-    var isDead: Boolean = false,
-    var respawnTimerSec: Int = 0
-) : Serializable
+      - name: Generate Kotlin Project Structure
+        run: |
+          mkdir -p app/src/main/java/com/zangaoui/game
+          mkdir -p app/src/main/res/values
 
-data class Projectile(
-    val id: Long,
-    val ownerId: String,
-    val weaponType: WeaponType,
-    var x: Float,
-    var y: Float,
-    val vx: Float,
-    val vy: Float,
-    var distanceRemaining: Float,
-    val damage: Int
-) : Serializable
+      - name: Create Gradle Files
+        run: |
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Zangaoui"
+          include(":app")
+          EOF
 
-data class ItemPickup(
-    val id: Long,
-    val weaponType: WeaponType?,
-    val isHealthPack: Boolean,
-    val x: Float,
-    val y: Float,
-    var isActive: Boolean = true
-) : Serializable
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+          }
+          EOF
 
-data class Obstacle(
-    val x: Float,
-    val y: Float,
-    val width: Float,
-    val height: Float,
-    val type: ObstacleType,
-    val label: String = ""
-) : Serializable {
-    fun contains(px: Float, py: Float, radius: Float = 0f): Boolean {
-        return px + radius >= x && px - radius <= x + width &&
-               py + radius >= y && py - radius <= y + height
-    }
-}
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+          android {
+              namespace = "com.zangaoui.game"
+              compileSdk = 34
+              defaultConfig {
+                  applicationId = "com.zangaoui.game"
+                  minSdk = 21
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+          }
+          EOF
 
-enum class ObstacleType {
-    BUILDING, WALL, CAR, TRASH_BIN, SHOP, ALLEY_BARRIER
-}
+      - name: Create AndroidManifest.xml
+        run: |
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+              <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="زنقاوي - Zangaoui"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="landscape">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create Full Kotlin Game Code (MainActivity.kt)
+        run: |
+          cat << 'EOF' > app/src/main/java/com/zangaoui/game/MainActivity.kt
+          package com.zangaoui.game
+
+          import android.app.Activity
+          import android.content.Context
+          import android.graphics.*
+          import android.os.Bundle
+          import android.view.MotionEvent
+          import android.view.SurfaceHolder
+          import android.view.SurfaceView
+          import java.net.DatagramPacket
+          import java.net.DatagramSocket
+          import java.net.InetAddress
+          import kotlin.math.*
+
+          // بيانات السلاح
+          enum class WeaponType(val damage: Int, val speed: Float, val isMelee: Boolean) {
+              STONE(25, 28f, false),      // حجر
+              BRICK(50, 18f, false),      // آجور
+              PAN(40, 0f, true),          // مقلاة
+              BIDON(30, 15f, false)       // بيدون
+          }
+
+          // كائن المقذوفات
+          data class Projectile(
+              var x: Float, var y: Float,
+              var vx: Float, var vy: Float,
+              val type: WeaponType, val shooterId: Int
+          )
+
+          // بيانات أي لاعب في الغرفة
+          data class PlayerData(
+              var id: Int, var name: String,
+              var x: Float, var y: Float,
+              var angle: Float, var health: Int,
+              var kills: Int, var isAlive: Boolean = true
+          )
+
+          class MainActivity : Activity() {
+              private lateinit var gameView: GameView
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  gameView = GameView(this)
+                  setContentView(gameView)
+              }
+
+              override fun onResume() { super.onResume(); gameView.resume() }
+              override fun onPause() { super.onPause(); gameView.pause() }
+          }
+
+          class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
+              private var gameThread: Thread? = null
+              @Volatile private var isRunning = false
+              private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+              // بيانات اللاعب المحلي
+              private val myId = (1000..9999).random()
+              private var playerName = "زنقاوي"
+              private var myX = 300f
+              private var myY = 500f
+              private var myVx = 0f
+              private var myVy = 0f
+              private var myAngle = 0f
+              private var myHealth = 100
+              private var myKills = 0
+              private var jetpackFuel = 100f
+              private var selectedWeapon = WeaponType.STONE
+              private var currentMap = 0 // 0: 105 مسكن, 1: قرية ZH, 2: غابة المقام
+              private val mapNames = arrayOf("العمارات 105 مسكن", "ZH قرية قديمة", "غابة المقام")
+
+              // قائمة اللاعبين والمقذوفات
+              private val players = HashMap<Int, PlayerData>()
+              private val projectiles = ArrayList<Projectile>()
+
+              // أزرار التحكم الافتراضية (Dual Joysticks - ميني ميليتيا)
+              private val leftStickCenter = PointF(220f, 750f)
+              private val rightStickCenter = PointF(1700f, 750f)
+              private var leftStickKnob = PointF(220f, 750f)
+              private var rightStickKnob = PointF(1700f, 750f)
+              private var leftStickActive = false
+              private var rightStickActive = false
+
+              // أنيميشن المشي
+              private var walkCycle = 0f
+
+              // شبكة الويفي عبر UDP
+              private var socket: DatagramSocket? = null
+              private val PORT = 8888
+
+              init {
+                  holder.addCallback(this)
+                  setupNetworking()
+              }
+
+              private fun setupNetworking() {
+                  Thread {
+                      try {
+                          socket = DatagramSocket(PORT)
+                          val buffer = ByteArray(256)
+                          while (true) {
+                              val packet = DatagramPacket(buffer, buffer.size)
+                              socket?.receive(packet)
+                              val msg = String(packet.data, 0, packet.length)
+                              parseNetworkPacket(msg)
+                          }
+                      } catch (e: Exception) { e.printStackTrace() }
+                  }.start()
+              }
+
+              private fun sendBroadcastPacket(msg: String) {
+                  Thread {
+                      try {
+                          val ds = DatagramSocket()
+                          ds.broadcast = true
+                          val data = msg.toByteArray()
+                          // بث للشبكة المحلية Hotspot
+                          val packet = DatagramPacket(data, data.size, InetAddress.getByName("255.255.255.255"), PORT)
+                          ds.send(packet)
+                          ds.close()
+                      } catch (e: Exception) {}
+                  }.start()
+              }
+
+              private fun parseNetworkPacket(msg: String) {
+                  val parts = msg.split(";")
+                  if (parts.size >= 7 && parts[0] == "SYNC") {
+                      val id = parts[1].toInt()
+                      if (id != myId) {
+                          val p = players[id] ?: PlayerData(id, parts[2], parts[3].toFloat(), parts[4].toFloat(), parts[5].toFloat(), 100, parts[6].toInt())
+                          p.name = parts[2]
+                          p.x = parts[3].toFloat()
+                          p.y = parts[4].toFloat()
+                          p.angle = parts[5].toFloat()
+                          p.kills = parts[6].toInt()
+                          players[id] = p
+                      }
+                  } else if (parts[0] == "FIRE" && parts[1].toInt() != myId) {
+                      val type = WeaponType.valueOf(parts[4])
+                      projectiles.add(Projectile(parts[2].toFloat(), parts[3].toFloat(), parts[5].toFloat(), parts[6].toFloat(), type, parts[1].toInt()))
+                  }
+              }
+
+              override fun run() {
+                  while (isRunning) {
+                      updatePhysics()
+                      drawCanvas()
+                      try { Thread.sleep(16) } catch (e: Exception) {}
+                  }
+              }
+
+              private fun updatePhysics() {
+                  // فيزياء الجاذبية والطيران (Jetpack)
+                  myVy += 1.2f // جاذبية
+                  if (leftStickActive) {
+                      val dx = leftStickKnob.x - leftStickCenter.x
+                      val dy = leftStickKnob.y - leftStickCenter.y
+                      myVx = (dx / 100f) * 12f
+                      if (dy < -30 && jetpackFuel > 0) { // طيران
+                          myVy = -14f
+                          jetpackFuel -= 0.6f
+                      }
+                      walkCycle += 0.2f
+                  } else {
+                      myVx *= 0.85f
+                      if (jetpackFuel < 100) jetpackFuel += 0.3f
+                  }
+
+                  myX += myVx
+                  myY += myVy
+
+                  // حدود الأرضية
+                  if (myY > 850f) { myY = 850f; myVy = 0f }
+                  if (myX < 50f) myX = 50f
+                  if (myX > 1870f) myX = 1870f
+
+                  // تحديث المقذوفات
+                  val it = projectiles.iterator()
+                  while (it.hasNext()) {
+                      val p = it.next()
+                      p.x += p.vx
+                      p.y += p.vy
+                      p.vy += 0.5f // جاذبية الحجر والآجور
+
+                      // اصطدام مع اللاعب المحلي
+                      if (p.shooterId != myId && abs(p.x - myX) < 40 && abs(p.y - myY) < 60) {
+                          myHealth -= p.type.damage
+                          it.remove()
+                          if (myHealth <= 0) {
+                              myHealth = 100
+                              myX = (200..1600).random().toFloat()
+                              myY = 300f
+                          }
+                      }
+                      if (p.y > 900 || p.x < 0 || p.x > 1920) it.remove()
+                  }
+
+                  // إرسال موقع اللاعب عبر الويفي كل بضع إطارات
+                  sendBroadcastPacket("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
+              }
+
+              private fun drawCanvas() {
+                  if (!holder.surface.isValid) return
+                  val canvas = holder.lockCanvas() ?: return
+
+                  // 1. رسم خلفية الخريطة
+                  drawMapBackground(canvas)
+
+                  // 2. رسم اللاعبين الآخرين
+                  for (p in players.values) {
+                      drawZangaouiCharacter(canvas, p.x, p.y, p.angle, p.name, false, p.kills)
+                  }
+
+                  // 3. رسم اللاعب المحلي
+                  drawZangaouiCharacter(canvas, myX, myY, myAngle, playerName, true, myKills)
+
+                  // 4. رسم المقذوفات (الحجر، الآجور...)
+                  drawProjectiles(canvas)
+
+                  // 5. رسم واجهة المستخدم وأزرار الـ Mini Militia
+                  drawUI(canvas)
+
+                  holder.unlockCanvasAndPost(canvas)
+              }
+
+              private fun drawMapBackground(canvas: Canvas) {
+                  when (currentMap) {
+                      0 -> { // العمارات 105 مسكن
+                          canvas.drawColor(Color.rgb(180, 200, 220)) // سماء
+                          paint.color = Color.rgb(120, 110, 100) // عمارات إسمنتية
+                          canvas.drawRect(100f, 200f, 600f, 900f, paint)
+                          canvas.drawRect(800f, 150f, 1300f, 900f, paint)
+                          paint.color = Color.DKGRAY // شرفات
+                          canvas.drawRect(150f, 400f, 550f, 420f, paint)
+                          canvas.drawRect(850f, 350f, 1250f, 370f, paint)
+                      }
+                      1 -> { // ZH قرية قديمة
+                          canvas.drawColor(Color.rgb(230, 210, 170))
+                          paint.color = Color.rgb(160, 82, 45) // جدران الطين والآجور
+                          canvas.drawRect(0f, 500f, 500f, 900f, paint)
+                          canvas.drawRect(700f, 450f, 1200f, 900f, paint)
+                      }
+                      2 -> { // غابة المقام
+                          canvas.drawColor(Color.rgb(135, 206, 235))
+                          paint.color = Color.rgb(34, 139, 34) // أشجار
+                          canvas.drawCircle(300f, 600f, 180f, paint)
+                          canvas.drawCircle(900f, 500f, 220f, paint)
+                          canvas.drawCircle(1500f, 650f, 190f, paint)
+                      }
+                  }
+                  // أرضية
+                  paint.color = Color.rgb(60, 60, 60)
+                  canvas.drawRect(0f, 880f, 1920f, 1080f, paint)
+              }
+
+              // رسم الشخصية بطابع زنقاوي كوميدي
+              private fun drawZangaouiCharacter(c: Canvas, x: Float, y: Float, angle: Float, name: String, isLocal: Boolean, kills: Int) {
+                  c.save()
+                  c.translate(x, y)
+
+                  // الأرجل (أنيميشن مشي واقعي مضحك)
+                  paint.color = Color.BLUE
+                  paint.strokeWidth = 10f
+                  val legSwing = if (abs(myVx) > 0.5f) sin(walkCycle) * 25f else 0f
+                  c.drawLine(-15f, 20f, -25f + legSwing, 55f, paint)
+                  c.drawLine(15f, 20f, 25f - legSwing, 55f, paint)
+
+                  // الجسد
+                  paint.color = if (isLocal) Color.rgb(220, 50, 50) else Color.rgb(50, 120, 220)
+                  c.drawRoundRect(RectF(-25f, -30f, 25f, 25f), 12f, 12f, paint)
+
+                  // الرأس المضحك والشارب والشنب الجزائري
+                  paint.color = Color.rgb(255, 218, 185)
+                  c.drawCircle(0f, -55f, 22f, paint)
+                  paint.color = Color.BLACK // شلاغم (شارب مضحك)
+                  c.drawRect(-12f, -48f, 12f, -42f, paint)
+                  // أعين مضحكة تنظر باتجاه التصويب
+                  paint.color = Color.WHITE
+                  c.drawCircle(-8f, -60f, 6f, paint)
+                  c.drawCircle(8f, -60f, 6f, paint)
+                  paint.color = Color.BLACK
+                  c.drawCircle(-8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
+                  c.drawCircle(8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
+
+                  // الذراع والسلاح (حجر / مقلاة / آجور)
+                  c.save()
+                  c.rotate(Math.toDegrees(angle.toDouble()).toFloat())
+                  paint.color = Color.rgb(255, 218, 185)
+                  c.drawRect(0f, -6f, 35f, 6f, paint) // ذراع ممتدة
+                  drawWeaponInHand(c, 38f, 0f, selectedWeapon)
+                  c.restore()
+
+                  // الاسم وشريط الحياة
+                  paint.textSize = 24f
+                  paint.color = Color.YELLOW
+                  paint.textAlign = Paint.Align.CENTER
+                  c.drawText("$name ($kills 💀)", 0f, -90f, paint)
+
+                  c.restore()
+              }
+
+              private fun drawWeaponInHand(c: Canvas, wx: Float, wy: Float, weapon: WeaponType) {
+                  when (weapon) {
+                      WeaponType.STONE -> {
+                          paint.color = Color.GRAY
+                          c.drawCircle(wx, wy, 10f, paint) // حجر
+                      }
+                      WeaponType.BRICK -> {
+                          paint.color = Color.rgb(180, 50, 30) // آجورة حمراء
+                          c.drawRect(wx - 8f, wy - 6f, wx + 16f, wy + 6f, paint)
+                      }
+                      WeaponType.PAN -> {
+                          paint.color = Color.BLACK // مقلاة
+                          c.drawCircle(wx + 10f, wy, 14f, paint)
+                          c.drawLine(wx - 5f, wy, wx + 5f, wy, paint)
+                      }
+                      WeaponType.BIDON -> {
+                          paint.color = Color.rgb(30, 144, 255) // بيدون أزرق
+                          c.drawRect(wx - 10f, wy - 14f, wx + 10f, wy + 14f, paint)
+                      }
+                  }
+              }
+
+              private fun drawProjectiles(canvas: Canvas) {
+                  for (p in projectiles) {
+                      when (p.type) {
+                          WeaponType.STONE -> { paint.color = Color.GRAY; canvas.drawCircle(p.x, p.y, 10f, paint) }
+                          WeaponType.BRICK -> { paint.color = Color.rgb(180, 50, 30); canvas.drawRect(p.x - 12f, p.y - 7f, p.x + 12f, p.y + 7f, paint) }
+                          WeaponType.BIDON -> { paint.color = Color.BLUE; canvas.drawRect(p.x - 15f, p.y - 15f, p.x + 15f, p.y + 15f, paint) }
+                          else -> {}
+                      }
+                  }
+              }
+
+              private fun drawUI(canvas: Canvas) {
+                  // رسم عصي التحكم Joysticks (مثل ميني ميليتيا)
+                  paint.color = Color.argb(80, 255, 255, 255)
+                  canvas.drawCircle(leftStickCenter.x, leftStickCenter.y, 120f, paint)
+                  canvas.drawCircle(rightStickCenter.x, rightStickCenter.y, 120f, paint)
+                  paint.color = Color.argb(180, 200, 200, 200)
+                  canvas.drawCircle(leftStickKnob.x, leftStickKnob.y, 50f, paint)
+                  canvas.drawCircle(rightStickKnob.x, rightStickKnob.y, 50f, paint)
+
+                  // شريط الحياة والبنزين (Jetpack)
+                  paint.color = Color.RED
+                  canvas.drawRect(60f, 40f, 60f + (myHealth * 3f), 65f, paint)
+                  paint.color = Color.YELLOW
+                  canvas.drawRect(60f, 75f, 60f + (jetpackFuel * 3f), 95f, paint)
+
+                  // لوحة الصدارة المباشرة (الترتيب - Classement)
+                  paint.color = Color.argb(160, 0, 0, 0)
+                  canvas.drawRoundRect(1400f, 30f, 1880f, 220f, 15f, 15f, paint)
+                  paint.color = Color.WHITE
+                  paint.textSize = 28f
+                  paint.textAlign = Paint.Align.LEFT
+                  canvas.drawText("🏆 الترتيب (Classement):", 1420f, 65f, paint)
+
+                  val allPlayers = ArrayList(players.values)
+                  allPlayers.add(PlayerData(myId, playerName, myX, myY, myAngle, myHealth, myKills))
+                  allPlayers.sortByDescending { it.kills }
+
+                  var yOffset = 105f
+                  for ((rank, p) in allPlayers.withIndex()) {
+                      if (rank < 4) {
+                          paint.color = if (p.id == myId) Color.GREEN else Color.WHITE
+                          canvas.drawText("#${rank + 1} ${p.name} - ${p.kills} قتلى", 1430f, yOffset, paint)
+                          yOffset += 32f
+                      }
+                  }
+
+                  // اسم الخريطة الحالية
+                  paint.color = Color.CYAN
+                  paint.textSize = 26f
+                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (المس هنا للتغيير)", 750f, 60f, paint)
+              }
+
+              override fun onTouchEvent(event: MotionEvent): Boolean {
+                  val count = event.pointerCount
+                  for (i in 0 until count) {
+                      val x = event.getX(i)
+                      val y = event.getY(i)
+                      val action = event.actionMasked
+
+                      // تغيير الخريطة عند لمس العنوان
+                      if (action == MotionEvent.ACTION_DOWN && y < 100 && x in 700f..1300f) {
+                          currentMap = (currentMap + 1) % 3
+                          return true
+                      }
+
+                      // التحكم الأيسر (حركة وطيران)
+                      if (x < 960) {
+                          if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
+                              leftStickKnob.set(leftStickCenter)
+                              leftStickActive = false
+                          } else {
+                              leftStickActive = true
+                              val dist = hypot(x - leftStickCenter.x, y - leftStickCenter.y)
+                              if (dist < 150) leftStickKnob.set(x, y)
+                          }
+                      }
+                      // التحكم الأيمن (تصويب ورمي الحجر / المقلاة)
+                      else {
+                          if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
+                              // عند الإفلات: رمي السلاح
+                              if (rightStickActive) fireWeapon()
+                              rightStickKnob.set(rightStickCenter)
+                              rightStickActive = false
+                          } else {
+                              rightStickActive = true
+                              val dx = x - rightStickCenter.x
+                              val dy = y - rightStickCenter.y
+                              myAngle = atan2(dy, dx)
+                              rightStickKnob.set(x, y)
+                          }
+                      }
+                  }
+                  return true
+              }
+
+              private fun fireWeapon() {
+                  val vx = cos(myAngle) * selectedWeapon.speed
+                  val vy = sin(myAngle) * selectedWeapon.speed
+                  val p = Projectile(myX, myY - 20, vx, vy, selectedWeapon, myId)
+                  projectiles.add(p)
+                  // إرسال طلقة المقذوف للأصدقاء بالويفي
+                  sendBroadcastPacket("FIRE;$myId;${myX};${myY - 20};${selectedWeapon.name};$vx;$vy")
+              }
+
+              fun resume() { isRunning = true; gameThread = Thread(this); gameThread?.start() }
+              fun pause() { isRunning = false; gameThread?.join() }
+              override fun surfaceCreated(h: SurfaceHolder) { resume() }
+              override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, ht: Int) {}
+              override fun surfaceDestroyed(h: SurfaceHolder) { pause() }
+          }
+          EOF
+
+      - name: Build Android APK with Gradle
+        run: |
+          gradle wrapper
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Finished APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zangaoui-Game-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
