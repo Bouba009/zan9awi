@@ -15,6 +15,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # تثبيت إصدار Gradle 8.5 المستقر مباشرة
+      - name: Setup Gradle 8.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
       - name: Accept Android Licenses
         run: |
           yes | sdkmanager --licenses || true
@@ -24,7 +30,7 @@ jobs:
           mkdir -p app/src/main/java/com/zangaoui/game
           mkdir -p app/src/main/res/values
 
-      - name: Write Gradle Settings & Config
+      - name: Write Gradle Settings & Config (Clean DSL)
         run: |
           cat << 'EOF' > settings.gradle
           pluginManagement {
@@ -46,27 +52,17 @@ jobs:
           EOF
 
           cat << 'EOF' > build.gradle
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.2'
-                  classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
           }
           EOF
 
           cat << 'EOF' > app/build.gradle
-          apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
 
           android {
               namespace 'com.zangaoui.game'
@@ -295,16 +291,20 @@ jobs:
                       p.y += p.vy
                       p.vy += 0.5f
 
+                      var hit = false
                       if (p.shooterId != myId && abs(p.x - myX) < 40 && abs(p.y - myY) < 60) {
                           myHealth -= p.type.damage
                           it.remove()
+                          hit = true
                           if (myHealth <= 0) {
                               myHealth = 100
                               myX = (200..1600).random().toFloat()
                               myY = 300f
                           }
                       }
-                      if (p.y > 900 || p.x < 0 || p.x > 1920) it.remove()
+                      if (!hit && (p.y > 900 || p.x < 0 || p.x > 1920)) {
+                          it.remove()
+                      }
                   }
                   sendBroadcast("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
               }
@@ -313,7 +313,6 @@ jobs:
                   if (!holder.surface.isValid) return
                   val canvas = holder.lockCanvas() ?: return
 
-                  // 1. الخريطة
                   when (currentMap) {
                       0 -> {
                           canvas.drawColor(Color.rgb(180, 200, 220))
@@ -337,19 +336,16 @@ jobs:
                   paint.color = Color.DKGRAY
                   canvas.drawRect(0f, 880f, 1920f, 1080f, paint)
 
-                  // 2. الشخصيات
                   for (p in players.values) {
                       drawPlayer(canvas, p.x, p.y, p.angle, p.name, false, p.kills)
                   }
                   drawPlayer(canvas, myX, myY, myAngle, playerName, true, myKills)
 
-                  // 3. المقذوفات
                   for (p in projectiles) {
                       paint.color = if (p.type == WeaponType.BRICK) Color.RED else Color.GRAY
                       canvas.drawCircle(p.x, p.y, 10f, paint)
                   }
 
-                  // 4. أزرار ميني ميليتيا Joysticks
                   paint.color = Color.argb(80, 255, 255, 255)
                   canvas.drawCircle(leftStickCenter.x, leftStickCenter.y, 120f, paint)
                   canvas.drawCircle(rightStickCenter.x, rightStickCenter.y, 120f, paint)
@@ -357,7 +353,6 @@ jobs:
                   canvas.drawCircle(leftStickKnob.x, leftStickKnob.y, 50f, paint)
                   canvas.drawCircle(rightStickKnob.x, rightStickKnob.y, 50f, paint)
 
-                  // 5. الترتيب (Classement)
                   paint.color = Color.argb(160, 0, 0, 0)
                   canvas.drawRoundRect(RectF(1400f, 30f, 1880f, 220f), 15f, 15f, paint)
                   paint.color = Color.WHITE
@@ -451,11 +446,9 @@ jobs:
           }
           EOF
 
-      - name: Build APK with Gradle Wrapper
+      - name: Build Android APK
         run: |
-          gradle wrapper --gradle-version 8.5
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
