@@ -1,639 +1,102 @@
-name: Build Zanqawi APK
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    name: Build Zanqawi
-    runs-on: ubuntu-24.04
-
-    steps:
-
-      # ==========================================
-      # 1. Checkout
-      # ==========================================
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ==========================================
-      # 2. Java 17
-      # ==========================================
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # ==========================================
-      # 3. Android SDK
-      # ==========================================
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      # ==========================================
-      # 4. Android SDK packages
-      # ==========================================
-      - name: Install Android SDK packages
-        shell: bash
-        run: |
-          set -e
-
-          yes | sdkmanager --licenses >/dev/null || true
-
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-      # ==========================================
-      # 5. Create project
-      # ==========================================
-      - name: Create Zanqawi project
-        shell: bash
-        run: |
-
-          set -e
-
-          echo "Creating Zanqawi project..."
-
-          mkdir -p app/src/main/java/com/zanqawi/game
-          mkdir -p app/src/main/res/values
-
-          # ========================================
-          # settings.gradle
-          # ========================================
-
-          cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          rootProject.name = "Zanqawi"
-
-          include(":app")
-          EOF
-
-          # ========================================
-          # Root build.gradle
-          # ========================================
-
-          cat > build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.7.3' apply false
-              id 'org.jetbrains.kotlin.android' version '2.0.21' apply false
-          }
-          EOF
-
-          # ========================================
-          # gradle.properties
-          # ========================================
-
-          cat > gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          kotlin.code.style=official
-          EOF
-
-          # ========================================
-          # app/build.gradle
-          # ========================================
-
-          cat > app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
-
-          android {
-              namespace 'com.zanqawi.game'
-              compileSdk 35
-
-              defaultConfig {
-                  applicationId 'com.zanqawi.game"
-                  minSdk 23
-                  targetSdk 35
-                  versionCode 1
-                  versionName "1.0"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles(
-                          getDefaultProguardFile(
-                              'proguard-android-optimize.txt'
-                          ),
-                          'proguard-rules.pro'
-                      )
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.15.0'
-              implementation 'androidx.appcompat:appcompat:1.7.0'
-          }
-          EOF
-
-          # ========================================
-          # ProGuard
-          # ========================================
-
-          cat > app/proguard-rules.pro <<'EOF'
-          # Zanqawi
-          EOF
-
-          # ========================================
-          # AndroidManifest
-          # ========================================
-
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-
-          <manifest
-              xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-permission
-                  android:name="android.permission.INTERNET" />
-
-              <uses-permission
-                  android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-              <uses-permission
-                  android:name="android.permission.ACCESS_WIFI_STATE" />
-
-              <application
-                  android:allowBackup="true"
-                  android:label="زنقاوي"
-                  android:supportsRtl="true"
-                  android:usesCleartextTraffic="true"
-                  android:theme="@style/AppTheme">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:screenOrientation="landscape"
-                      android:exported="true">
-
-                      <intent-filter>
-
-                          <action
-                              android:name="android.intent.action.MAIN" />
-
-                          <category
-                              android:name="android.intent.category.LAUNCHER" />
-
-                      </intent-filter>
-
-                  </activity>
-
-              </application>
-
-          </manifest>
-          EOF
-
-          # ========================================
-          # Theme
-          # ========================================
-
-          cat > app/src/main/res/values/styles.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-
-          <resources>
-
-              <style
-                  name="AppTheme"
-                  parent="android:style/Theme.Material.Light.NoActionBar">
-
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:windowFullscreen">true</item>
-                  <item name="android:colorAccent">#FF8A00</item>
-                  <item name="android:navigationBarColor">#101010</item>
-
-              </style>
-
-          </resources>
-          EOF
-
-          # ========================================
-          # MainActivity
-          # ========================================
-
-          cat > app/src/main/java/com/zanqawi/game/MainActivity.kt <<'EOF'
-          package com.zanqawi.game
-
-          import android.app.Activity
-          import android.os.Bundle
-          import android.view.Window
-          import android.view.WindowManager
-
-          class MainActivity : Activity() {
-
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-
-                  requestWindowFeature(Window.FEATURE_NO_TITLE)
-
-                  window.setFlags(
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                      WindowManager.LayoutParams.FLAG_FULLSCREEN
-                  )
-
-                  window.addFlags(
-                      WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                  )
-
-                  setContentView(ZanqawiGameView(this))
-              }
-          }
-          EOF
-
-          # ========================================
-          # Simple game
-          # ========================================
-
-          cat > app/src/main/java/com/zanqawi/game/ZanqawiGameView.kt <<'EOF'
-          package com.zanqawi.game
-
-          import android.content.Context
-          import android.graphics.Canvas
-          import android.graphics.Color
-          import android.graphics.Paint
-          import android.graphics.Typeface
-          import android.view.MotionEvent
-          import android.view.View
-
-          class ZanqawiGameView(
-              context: Context
-          ) : View(context) {
-
-              private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-              private var playerX = 400f
-              private var playerY = 500f
-
-              private var left = false
-              private var right = false
-
-              private var weapon = 0
-
-              private val weapons = arrayOf(
-                  "حجر",
-                  "آجور",
-                  "مقلاة",
-                  "بيدون",
-                  "غراف",
-                  "قدر"
-              )
-
-              init {
-                  setBackgroundColor(Color.rgb(70, 120, 160))
-              }
-
-              override fun onDraw(canvas: Canvas) {
-                  super.onDraw(canvas)
-
-                  drawMap(canvas)
-                  updatePlayer()
-                  drawPlayer(canvas)
-                  drawUI(canvas)
-
-                  postInvalidateOnAnimation()
-              }
-
-              private fun updatePlayer() {
-
-                  if (left) {
-                      playerX -= 8f
-                  }
-
-                  if (right) {
-                      playerX += 8f
-                  }
-
-                  playerX = playerX.coerceIn(
-                      60f,
-                      width.toFloat() - 60f
-                  )
-              }
-
-              private fun drawMap(canvas: Canvas) {
-
-                  paint.color = Color.rgb(125, 125, 125)
-
-                  canvas.drawRect(
-                      0f,
-                      height * 0.35f,
-                      width.toFloat(),
-                      height * 0.75f,
-                      paint
-                  )
-
-                  paint.color = Color.rgb(55, 100, 50)
-
-                  canvas.drawRect(
-                      0f,
-                      height * 0.75f,
-                      width.toFloat(),
-                      height.toFloat(),
-                      paint
-                  )
-
-                  paint.color = Color.rgb(100, 100, 100)
-
-                  for (i in 0 until 5) {
-
-                      val x = i * width / 5f
-
-                      canvas.drawRect(
-                          x + 10,
-                          height * 0.4f,
-                          x + width / 5f - 10,
-                          height * 0.7f,
-                          paint
-                      )
-                  }
-              }
-
-              private fun drawPlayer(canvas: Canvas) {
-
-                  // Body
-                  paint.color = Color.rgb(40, 40, 45)
-
-                  canvas.drawCircle(
-                      playerX,
-                      playerY,
-                      35f,
-                      paint
-                  )
-
-                  // Head
-                  paint.color = Color.rgb(210, 155, 110)
-
-                  canvas.drawCircle(
-                      playerX,
-                      playerY - 55,
-                      28f,
-                      paint
-                  )
-
-                  // Hair
-                  paint.color = Color.rgb(35, 25, 20)
-
-                  canvas.drawCircle(
-                      playerX,
-                      playerY - 78,
-                      22f,
-                      paint
-                  )
-
-                  // Eyes
-                  paint.color = Color.BLACK
-
-                  canvas.drawCircle(
-                      playerX - 9,
-                      playerY - 55,
-                      4f,
-                      paint
-                  )
-
-                  canvas.drawCircle(
-                      playerX + 9,
-                      playerY - 55,
-                      4f,
-                      paint
-                  )
-              }
-
-              private fun drawUI(canvas: Canvas) {
-
-                  paint.color = Color.argb(190, 0, 0, 0)
-
-                  canvas.drawRect(
-                      0f,
-                      0f,
-                      width.toFloat(),
-                      90f,
-                      paint
-                  )
-
-                  paint.color = Color.WHITE
-                  paint.textSize = 28f
-                  paint.typeface = Typeface.DEFAULT_BOLD
-
-                  canvas.drawText(
-                      "زنقاوي",
-                      30f,
-                      40f,
-                      paint
-                  )
-
-                  paint.textSize = 20f
-
-                  canvas.drawText(
-                      "السلاح: ${weapons[weapon]}",
-                      30f,
-                      70f,
-                      paint
-                  )
-
-                  // Left button
-                  paint.color = Color.argb(160, 255, 255, 255)
-
-                  canvas.drawCircle(
-                      100f,
-                      height - 100f,
-                      65f,
-                      paint
-                  )
-
-                  // Right button
-                  canvas.drawCircle(
-                      260f,
-                      height - 100f,
-                      65f,
-                      paint
-                  )
-
-                  // Fire
-                  paint.color = Color.argb(190, 220, 60, 50)
-
-                  canvas.drawCircle(
-                      width - 100f,
-                      height - 100f,
-                      70f,
-                      paint
-                  )
-
-                  paint.color = Color.WHITE
-                  paint.textSize = 20f
-
-                  canvas.drawText(
-                      "←",
-                      85f,
-                      height - 92f,
-                      paint
-                  )
-
-                  canvas.drawText(
-                      "→",
-                      245f,
-                      height - 92f,
-                      paint
-                  )
-
-                  canvas.drawText(
-                      "FIRE",
-                      width - 128f,
-                      height - 93f,
-                      paint
-                  )
-              }
-
-              override fun onTouchEvent(
-                  event: MotionEvent
-              ): Boolean {
-
-                  when (event.actionMasked) {
-
-                      MotionEvent.ACTION_DOWN,
-                      MotionEvent.ACTION_MOVE -> {
-
-                          left = false
-                          right = false
-
-                          val x = event.x
-                          val y = event.y
-
-                          if (y > height * 0.70f) {
-
-                              when {
-
-                                  x < 170f -> {
-                                      left = true
-                                  }
-
-                                  x < 340f -> {
-                                      right = true
-                                  }
-
-                                  x > width - 180f -> {
-                                      weapon++
-
-                                      if (weapon >= weapons.size) {
-                                          weapon = 0
-                                      }
-                                  }
-                              }
-                          }
-
-                          return true
-                      }
-
-                      MotionEvent.ACTION_UP,
-                      MotionEvent.ACTION_CANCEL -> {
-
-                          left = false
-                          right = false
-
-                          return true
-                      }
-                  }
-
-                  return true
-              }
-          }
-          EOF
-
-      # ==========================================
-      # 6. Install Gradle
-      # ==========================================
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      # ==========================================
-      # 7. Generate Gradle Wrapper
-      # ==========================================
-      - name: Generate Gradle Wrapper
-        shell: bash
-        run: |
-          set -e
-
-          gradle wrapper \
-            --gradle-version 8.9 \
-            --distribution-type bin
-
-          chmod +x ./gradlew
-
-      # ==========================================
-      # 8. Verify project
-      # ==========================================
-      - name: Verify Gradle
-        shell: bash
-        run: |
-          ./gradlew --version
-
-      # ==========================================
-      # 9. Build APK
-      # ==========================================
-      - name: Build Debug APK
-        shell: bash
-        run: |
-          set -e
-
-          ./gradlew clean assembleDebug --stacktrace
-
-      # ==========================================
-      # 10. Prepare APK
-      # ==========================================
-      - name: Prepare APK
-        shell: bash
-        run: |
-          set -e
-
-          mkdir -p release
-
-          cp \
-            app/build/outputs/apk/debug/app-debug.apk \
-            release/Zanqawi.apk
-
-      # ==========================================
-      # 11. Upload APK
-      # ==========================================
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zanqawi-APK
-          path: release/Zanqawi.apk
-          if-no-files-found: error
+package com.zangaoui.game.model
+
+import java.io.Serializable
+import kotlin.math.cos
+import kotlin.math.sin
+
+enum class CharacterType(
+    val title: String,
+    val maxHp: Int,
+    val baseSpeed: Float,
+    val abilityName: String,
+    val abilityCooldownMs: Long,
+    val colorPrimary: Int,
+    val colorSecondary: Int
+) {
+    SPORTY("الشاب الرياضي", 100, 10f, "تسارع خارق (Sprint)", 4000L, 0xFFE74C3C.toInt(), 0xFFFFFFFF.toInt()),
+    ANGRY_UNCLE("العم الغاضب", 160, 6.5f, "صرخة الزنقة (Stun AOE)", 7000L, 0xFF34495E.toInt(), 0xFF95A5A6.toInt()),
+    CURIOUS_NEIGHBOR("الجار الفضولي", 90, 9f, "تخفي وسرعة (Stealth)", 6000L, 0xFF8E44AD.toInt(), 0xFFF1C40F.toInt()),
+    SHOPKEEPER("صاحب الحانوت", 130, 7f, "درع الصناديق (Shield)", 8000L, 0xFF27AE60.toInt(), 0xFFE67E22.toInt()),
+    WORKER("العامل الكادح", 140, 7.5f, "ضربة المطرقة (Heavy Smash)", 5000L, 0xFFD35400.toInt(), 0xFF2C3E50.toInt()),
+    FAST_GUY("الفيسبا السريع", 80, 11.5f, "مراوغة خاطفة (Blink)", 3500L, 0xFFF39C12.toInt(), 0xFFE74C3C.toInt()),
+    HEAVY_GUY("البولفارد الثقيل", 200, 5.5f, "زلزال الحومة (Ground Slam)", 9000L, 0xFF7F8C8D.toInt(), 0xFF16A085.toInt())
+}
+
+enum class WeaponType(
+    val weaponName: String,
+    val damage: Int,
+    val range: Float,
+    val speed: Float,
+    val cooldownMs: Long,
+    val isThrowable: Boolean,
+    val color: Int
+) {
+    FIST("قبضة اليد", 15, 60f, 0f, 400L, false, 0xFFF1C40F.toInt()),
+    STONE("حجر الدروج", 25, 450f, 16f, 600L, true, 0xFF7F8C8D.toInt()),
+    BRICK("آجورة حمراء", 40, 380f, 14f, 900L, true, 0xFFC0392B.toInt()),
+    PAN("مقلاة الوالدة", 50, 80f, 0f, 750L, false, 0xFF2C3E50.toInt()),
+    BIDON("بيدون ماء", 35, 300f, 11f, 1200L, true, 0xFF2980B9.toInt()),
+    GHRAF("غراف العرس", 30, 90f, 0f, 500L, false, 0xFFBDC3C7.toInt()),
+    POT("قدر الضغط", 60, 110f, 0f, 1100L, false, 0xFF95A5A6.toInt()),
+    BROOM("مكنسة بالية", 20, 120f, 0f, 450L, false, 0xFFD35400.toInt()),
+    CHAIR("كرسي قهوة بلاستيك", 45, 250f, 12f, 1300L, true, 0xFF27AE60.toInt()),
+    WATER_BOTTLE("قنينة كوندية", 20, 500f, 18f, 500L, true, 0xFF1ABC9C.toInt())
+}
+
+data class PlayerState(
+    val id: String,
+    var name: String,
+    var characterType: CharacterType,
+    var x: Float,
+    var y: Float,
+    var angle: Float = 0f,
+    var hp: Int = 100,
+    var maxHp: Int = 100,
+    var score: Int = 0,
+    var kills: Int = 0,
+    var deaths: Int = 0,
+    var isDashing: Boolean = false,
+    var isShielded: Boolean = false,
+    var currentWeapon: WeaponType = WeaponType.FIST,
+    var isDead: Boolean = false,
+    var respawnTimerSec: Int = 0
+) : Serializable
+
+data class Projectile(
+    val id: Long,
+    val ownerId: String,
+    val weaponType: WeaponType,
+    var x: Float,
+    var y: Float,
+    val vx: Float,
+    val vy: Float,
+    var distanceRemaining: Float,
+    val damage: Int
+) : Serializable
+
+data class ItemPickup(
+    val id: Long,
+    val weaponType: WeaponType?,
+    val isHealthPack: Boolean,
+    val x: Float,
+    val y: Float,
+    var isActive: Boolean = true
+) : Serializable
+
+data class Obstacle(
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    val type: ObstacleType,
+    val label: String = ""
+) : Serializable {
+    fun contains(px: Float, py: Float, radius: Float = 0f): Boolean {
+        return px + radius >= x && px - radius <= x + width &&
+               py + radius >= y && py - radius <= y + height
+    }
+}
+
+enum class ObstacleType {
+    BUILDING, WALL, CAR, TRASH_BIN, SHOP, ALLEY_BARRIER
+}
