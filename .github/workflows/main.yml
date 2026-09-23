@@ -7,66 +7,69 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build Zanqawi Android APK
+    name: Build Zanqawi
     runs-on: ubuntu-24.04
 
     steps:
 
-      # ============================================================
+      # ==========================================
       # 1. Checkout
-      # ============================================================
-      - name: Checkout repository
+      # ==========================================
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ============================================================
+      # ==========================================
       # 2. Java 17
-      # ============================================================
+      # ==========================================
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      # ============================================================
+      # ==========================================
       # 3. Android SDK
-      # ============================================================
+      # ==========================================
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # ============================================================
-      # 4. Install Android SDK components
-      # ============================================================
-      - name: Install Android SDK
+      # ==========================================
+      # 4. Android SDK packages
+      # ==========================================
+      - name: Install Android SDK packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
+          set -e
+
+          yes | sdkmanager --licenses >/dev/null || true
 
           sdkmanager \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # ============================================================
-      # 5. Create project structure
-      # ============================================================
+      # ==========================================
+      # 5. Create project
+      # ==========================================
       - name: Create Zanqawi project
         shell: bash
         run: |
 
           set -e
 
-          rm -rf app
+          echo "Creating Zanqawi project..."
+
           mkdir -p app/src/main/java/com/zanqawi/game
           mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/mipmap-hdpi
 
-          # ========================================================
+          # ========================================
           # settings.gradle
-          # ========================================================
+          # ========================================
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -91,9 +94,9 @@ jobs:
           include(":app")
           EOF
 
-          # ========================================================
+          # ========================================
           # Root build.gradle
-          # ========================================================
+          # ========================================
 
           cat > build.gradle <<'EOF'
           plugins {
@@ -102,9 +105,9 @@ jobs:
           }
           EOF
 
-          # ========================================================
+          # ========================================
           # gradle.properties
-          # ========================================================
+          # ========================================
 
           cat > gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
@@ -112,9 +115,9 @@ jobs:
           kotlin.code.style=official
           EOF
 
-          # ========================================================
+          # ========================================
           # app/build.gradle
-          # ========================================================
+          # ========================================
 
           cat > app/build.gradle <<'EOF'
           plugins {
@@ -127,18 +130,20 @@ jobs:
               compileSdk 35
 
               defaultConfig {
-                  applicationId 'com.zanqawi.game'
+                  applicationId 'com.zanqawi.game"
                   minSdk 23
                   targetSdk 35
                   versionCode 1
-                  versionName '1.0'
+                  versionName "1.0"
               }
 
               buildTypes {
                   release {
                       minifyEnabled false
                       proguardFiles(
-                          getDefaultProguardFile('proguard-android-optimize.txt'),
+                          getDefaultProguardFile(
+                              'proguard-android-optimize.txt'
+                          ),
                           'proguard-rules.pro'
                       )
                   }
@@ -160,35 +165,39 @@ jobs:
           }
           EOF
 
-          # ========================================================
-          # proguard
-          # ========================================================
+          # ========================================
+          # ProGuard
+          # ========================================
 
           cat > app/proguard-rules.pro <<'EOF'
           # Zanqawi
-          # No custom ProGuard rules required for this version.
           EOF
 
-          # ========================================================
+          # ========================================
           # AndroidManifest
-          # ========================================================
+          # ========================================
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
 
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <manifest
+              xmlns:android="http://schemas.android.com/apk/res/android">
 
-              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-              <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission
+                  android:name="android.permission.INTERNET" />
+
+              <uses-permission
+                  android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <uses-permission
+                  android:name="android.permission.ACCESS_WIFI_STATE" />
 
               <application
                   android:allowBackup="true"
                   android:label="زنقاوي"
                   android:supportsRtl="true"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="true">
+                  android:usesCleartextTraffic="true"
+                  android:theme="@style/AppTheme">
 
                   <activity
                       android:name=".MainActivity"
@@ -196,8 +205,13 @@ jobs:
                       android:exported="true">
 
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
+
+                          <action
+                              android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.LAUNCHER" />
+
                       </intent-filter>
 
                   </activity>
@@ -207,9 +221,9 @@ jobs:
           </manifest>
           EOF
 
-          # ========================================================
+          # ========================================
           # Theme
-          # ========================================================
+          # ========================================
 
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -224,16 +238,15 @@ jobs:
                   <item name="android:windowFullscreen">true</item>
                   <item name="android:colorAccent">#FF8A00</item>
                   <item name="android:navigationBarColor">#101010</item>
-                  <item name="android:statusBarColor">#101010</item>
 
               </style>
 
           </resources>
           EOF
 
-          # ========================================================
-          # MainActivity.kt
-          # ========================================================
+          # ========================================
+          # MainActivity
+          # ========================================
 
           cat > app/src/main/java/com/zanqawi/game/MainActivity.kt <<'EOF'
           package com.zanqawi.game
@@ -264,44 +277,36 @@ jobs:
           }
           EOF
 
-          # ========================================================
-          # ZanqawiGameView.kt
-          # ========================================================
+          # ========================================
+          # Simple game
+          # ========================================
 
           cat > app/src/main/java/com/zanqawi/game/ZanqawiGameView.kt <<'EOF'
           package com.zanqawi.game
 
           import android.content.Context
-          import android.graphics.*
-          import android.graphics.drawable.ColorDrawable
+          import android.graphics.Canvas
+          import android.graphics.Color
+          import android.graphics.Paint
+          import android.graphics.Typeface
           import android.view.MotionEvent
           import android.view.View
-          import kotlin.math.cos
-          import kotlin.math.sin
-          import kotlin.random.Random
 
-          class ZanqawiGameView(context: Context) : View(context) {
+          class ZanqawiGameView(
+              context: Context
+          ) : View(context) {
 
               private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-              private var playerX = 500f
+              private var playerX = 400f
               private var playerY = 500f
 
-              private var velocityX = 0f
-              private var velocityY = 0f
+              private var left = false
+              private var right = false
 
-              private var leftPressed = false
-              private var rightPressed = false
-              private var jumpPressed = false
-              private var firePressed = false
+              private var weapon = 0
 
-              private var health = 100
-              private var kills = 0
-              private var deaths = 0
-
-              private var weaponIndex = 0
-
-              private val weaponNames = arrayOf(
+              private val weapons = arrayOf(
                   "حجر",
                   "آجور",
                   "مقلاة",
@@ -310,289 +315,134 @@ jobs:
                   "قدر"
               )
 
-              private val bullets = mutableListOf<Projectile>()
-
-              private var lastFrame = System.nanoTime()
-
-              private val playerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-              private val weaponPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
               init {
-                  setBackgroundColor(Color.rgb(28, 30, 34))
-                  isFocusable = true
+                  setBackgroundColor(Color.rgb(70, 120, 160))
               }
 
               override fun onDraw(canvas: Canvas) {
                   super.onDraw(canvas)
 
-                  val now = System.nanoTime()
-                  val delta = ((now - lastFrame) / 1_000_000_000.0)
-                      .coerceAtMost(0.05)
-
-                  lastFrame = now
-
-                  update(delta.toFloat())
-                  drawWorld(canvas)
+                  drawMap(canvas)
+                  updatePlayer()
                   drawPlayer(canvas)
-                  drawProjectiles(canvas)
-                  drawHud(canvas)
-                  drawControls(canvas)
+                  drawUI(canvas)
 
                   postInvalidateOnAnimation()
               }
 
-              private fun update(delta: Float) {
+              private fun updatePlayer() {
 
-                  val speed = 430f
-
-                  velocityX = when {
-                      leftPressed -> -speed
-                      rightPressed -> speed
-                      else -> 0f
+                  if (left) {
+                      playerX -= 8f
                   }
 
-                  playerX += velocityX * delta
-
-                  if (jumpPressed && playerY >= height * 0.72f) {
-                      velocityY = -900f
+                  if (right) {
+                      playerX += 8f
                   }
 
-                  velocityY += 1900f * delta
-                  playerY += velocityY * delta
-
-                  val floor = height * 0.72f
-
-                  if (playerY > floor) {
-                      playerY = floor
-                      velocityY = 0f
-                  }
-
-                  playerX = playerX.coerceIn(80f, width - 80f)
-
-                  if (firePressed) {
-                      fire()
-                      firePressed = false
-                  }
-
-                  val iterator = bullets.iterator()
-
-                  while (iterator.hasNext()) {
-                      val bullet = iterator.next()
-
-                      bullet.x += bullet.vx * delta
-                      bullet.y += bullet.vy * delta
-
-                      bullet.life -= delta
-
-                      if (
-                          bullet.life <= 0f ||
-                          bullet.x < -100f ||
-                          bullet.x > width + 100f
-                      ) {
-                          iterator.remove()
-                      }
-                  }
-              }
-
-              private fun fire() {
-
-                  val direction = if (rightPressed) 1f else 1f
-
-                  val projectile = Projectile(
-                      playerX + direction * 60f,
-                      playerY - 45f,
-                      direction * 1100f,
-                      0f,
-                      2f
+                  playerX = playerX.coerceIn(
+                      60f,
+                      width.toFloat() - 60f
                   )
-
-                  bullets.add(projectile)
               }
 
-              private fun drawWorld(canvas: Canvas) {
+              private fun drawMap(canvas: Canvas) {
 
-                  paint.color = Color.rgb(42, 45, 50)
+                  paint.color = Color.rgb(125, 125, 125)
+
                   canvas.drawRect(
                       0f,
+                      height * 0.35f,
+                      width.toFloat(),
+                      height * 0.75f,
+                      paint
+                  )
+
+                  paint.color = Color.rgb(55, 100, 50)
+
+                  canvas.drawRect(
                       0f,
+                      height * 0.75f,
                       width.toFloat(),
                       height.toFloat(),
                       paint
                   )
 
-                  // Sky
-                  paint.color = Color.rgb(75, 125, 165)
-
-                  canvas.drawRect(
-                      0f,
-                      0f,
-                      width.toFloat(),
-                      height * 0.55f,
-                      paint
-                  )
-
-                  // Buildings
-                  paint.color = Color.rgb(130, 130, 130)
-
-                  val buildingWidth = width / 5f
+                  paint.color = Color.rgb(100, 100, 100)
 
                   for (i in 0 until 5) {
 
-                      val x = i * buildingWidth
+                      val x = i * width / 5f
 
                       canvas.drawRect(
-                          x,
-                          height * 0.35f,
-                          x + buildingWidth - 5f,
-                          height * 0.72f,
+                          x + 10,
+                          height * 0.4f,
+                          x + width / 5f - 10,
+                          height * 0.7f,
                           paint
                       )
-
-                      paint.color = Color.rgb(220, 190, 90)
-
-                      for (row in 0 until 3) {
-                          for (col in 0 until 3) {
-
-                              val wx = x + 30 + col * 55
-                              val wy = height * 0.40f + row * 65
-
-                              canvas.drawRect(
-                                  wx,
-                                  wy,
-                                  wx + 30,
-                                  wy + 35,
-                                  paint
-                              )
-                          }
-                      }
-
-                      paint.color = Color.rgb(130, 130, 130)
                   }
-
-                  // Ground
-                  paint.color = Color.rgb(65, 95, 55)
-
-                  canvas.drawRect(
-                      0f,
-                      height * 0.72f,
-                      width.toFloat(),
-                      height.toFloat(),
-                      paint
-                  )
-
-                  // Ground line
-                  paint.color = Color.rgb(45, 60, 40)
-
-                  canvas.drawRect(
-                      0f,
-                      height * 0.72f,
-                      width.toFloat(),
-                      height * 0.735f,
-                      paint
-                  )
               }
 
               private fun drawPlayer(canvas: Canvas) {
 
-                  // Shadow
-                  paint.color = Color.argb(80, 0, 0, 0)
+                  // Body
+                  paint.color = Color.rgb(40, 40, 45)
 
-                  canvas.drawOval(
-                      playerX - 45,
-                      playerY + 35,
-                      playerX + 45,
-                      playerY + 52,
+                  canvas.drawCircle(
+                      playerX,
+                      playerY,
+                      35f,
                       paint
                   )
 
-                  // Body
-                  playerPaint.color = Color.rgb(45, 45, 50)
-
-                  canvas.drawRoundRect(
-                      playerX - 30,
-                      playerY - 5,
-                      playerX + 30,
-                      playerY + 50,
-                      18f,
-                      18f,
-                      playerPaint
-                  )
-
                   // Head
-                  playerPaint.color = Color.rgb(210, 155, 110)
+                  paint.color = Color.rgb(210, 155, 110)
 
                   canvas.drawCircle(
                       playerX,
-                      playerY - 35,
-                      30f,
-                      playerPaint
+                      playerY - 55,
+                      28f,
+                      paint
                   )
 
                   // Hair
-                  playerPaint.color = Color.rgb(40, 25, 20)
+                  paint.color = Color.rgb(35, 25, 20)
 
                   canvas.drawCircle(
                       playerX,
-                      playerY - 58,
-                      25f,
-                      playerPaint
+                      playerY - 78,
+                      22f,
+                      paint
                   )
 
                   // Eyes
                   paint.color = Color.BLACK
 
                   canvas.drawCircle(
-                      playerX - 10,
-                      playerY - 37,
+                      playerX - 9,
+                      playerY - 55,
                       4f,
                       paint
                   )
 
                   canvas.drawCircle(
-                      playerX + 10,
-                      playerY - 37,
+                      playerX + 9,
+                      playerY - 55,
                       4f,
                       paint
                   )
+              }
 
-                  // Weapon
-                  weaponPaint.color = Color.rgb(35, 35, 35)
+              private fun drawUI(canvas: Canvas) {
+
+                  paint.color = Color.argb(190, 0, 0, 0)
 
                   canvas.drawRect(
-                      playerX + 25,
-                      playerY - 8,
-                      playerX + 75,
-                      playerY + 5,
-                      weaponPaint
-                  )
-              }
-
-              private fun drawProjectiles(canvas: Canvas) {
-
-                  for (bullet in bullets) {
-
-                      paint.color = Color.rgb(205, 145, 80)
-
-                      canvas.drawCircle(
-                          bullet.x,
-                          bullet.y,
-                          12f,
-                          paint
-                      )
-                  }
-              }
-
-              private fun drawHud(canvas: Canvas) {
-
-                  paint.color = Color.argb(210, 0, 0, 0)
-
-                  canvas.drawRoundRect(
-                      20f,
-                      20f,
-                      width - 20f,
-                      100f,
-                      20f,
-                      20f,
+                      0f,
+                      0f,
+                      width.toFloat(),
+                      90f,
                       paint
                   )
 
@@ -602,171 +452,118 @@ jobs:
 
                   canvas.drawText(
                       "زنقاوي",
-                      45f,
-                      55f,
+                      30f,
+                      40f,
                       paint
                   )
 
                   paint.textSize = 20f
 
                   canvas.drawText(
-                      "Player",
-                      180f,
-                      50f,
+                      "السلاح: ${weapons[weapon]}",
+                      30f,
+                      70f,
                       paint
                   )
 
-                  paint.color = Color.rgb(40, 200, 70)
-
-                  canvas.drawRect(
-                      180f,
-                      65f,
-                      180f + health * 2f,
-                      82f,
-                      paint
-                  )
-
-                  paint.color = Color.WHITE
-
-                  canvas.drawText(
-                      "Kills: $kills",
-                      430f,
-                      50f,
-                      paint
-                  )
-
-                  canvas.drawText(
-                      "Deaths: $deaths",
-                      550f,
-                      50f,
-                      paint
-                  )
-
-                  canvas.drawText(
-                      "السلاح: ${weaponNames[weaponIndex]}",
-                      720f,
-                      50f,
-                      paint
-                  )
-              }
-
-              private fun drawControls(canvas: Canvas) {
-
-                  // LEFT JOYSTICK
-                  paint.color = Color.argb(100, 255, 255, 255)
-
-                  canvas.drawCircle(
-                      120f,
-                      height - 130f,
-                      75f,
-                      paint
-                  )
-
+                  // Left button
                   paint.color = Color.argb(160, 255, 255, 255)
 
                   canvas.drawCircle(
-                      120f,
-                      height - 130f,
-                      38f,
-                      paint
-                  )
-
-                  // RIGHT FIRE
-                  paint.color = Color.argb(150, 230, 70, 60)
-
-                  canvas.drawCircle(
-                      width - 110f,
-                      height - 130f,
+                      100f,
+                      height - 100f,
                       65f,
                       paint
                   )
 
+                  // Right button
+                  canvas.drawCircle(
+                      260f,
+                      height - 100f,
+                      65f,
+                      paint
+                  )
+
+                  // Fire
+                  paint.color = Color.argb(190, 220, 60, 50)
+
+                  canvas.drawCircle(
+                      width - 100f,
+                      height - 100f,
+                      70f,
+                      paint
+                  )
+
                   paint.color = Color.WHITE
-                  paint.textSize = 22f
-                  paint.typeface = Typeface.DEFAULT_BOLD
+                  paint.textSize = 20f
+
+                  canvas.drawText(
+                      "←",
+                      85f,
+                      height - 92f,
+                      paint
+                  )
+
+                  canvas.drawText(
+                      "→",
+                      245f,
+                      height - 92f,
+                      paint
+                  )
 
                   canvas.drawText(
                       "FIRE",
-                      width - 135f,
-                      height - 123f,
-                      paint
-                  )
-
-                  // JUMP
-                  paint.color = Color.argb(140, 70, 140, 230)
-
-                  canvas.drawCircle(
-                      width - 250f,
-                      height - 100f,
-                      45f,
-                      paint
-                  )
-
-                  paint.color = Color.WHITE
-
-                  canvas.drawText(
-                      "↑",
-                      width - 258f,
-                      height - 91f,
-                      paint
-                  )
-
-                  // WEAPON
-                  paint.color = Color.argb(140, 240, 160, 40)
-
-                  canvas.drawCircle(
-                      width - 350f,
-                      height - 160f,
-                      38f,
-                      paint
-                  )
-
-                  paint.color = Color.WHITE
-                  paint.textSize = 18f
-
-                  canvas.drawText(
-                      "W",
-                      width - 359f,
-                      height - 153f,
+                      width - 128f,
+                      height - 93f,
                       paint
                   )
               }
 
-              override fun onTouchEvent(event: MotionEvent): Boolean {
+              override fun onTouchEvent(
+                  event: MotionEvent
+              ): Boolean {
 
                   when (event.actionMasked) {
 
                       MotionEvent.ACTION_DOWN,
-                      MotionEvent.ACTION_POINTER_DOWN -> {
-
-                          handleTouch(
-                              event.getX(event.actionIndex),
-                              event.getY(event.actionIndex)
-                          )
-
-                          return true
-                      }
-
                       MotionEvent.ACTION_MOVE -> {
 
-                          for (i in 0 until event.pointerCount) {
+                          left = false
+                          right = false
 
-                              handleTouch(
-                                  event.getX(i),
-                                  event.getY(i)
-                              )
+                          val x = event.x
+                          val y = event.y
+
+                          if (y > height * 0.70f) {
+
+                              when {
+
+                                  x < 170f -> {
+                                      left = true
+                                  }
+
+                                  x < 340f -> {
+                                      right = true
+                                  }
+
+                                  x > width - 180f -> {
+                                      weapon++
+
+                                      if (weapon >= weapons.size) {
+                                          weapon = 0
+                                      }
+                                  }
+                              }
                           }
 
                           return true
                       }
 
                       MotionEvent.ACTION_UP,
-                      MotionEvent.ACTION_POINTER_UP,
                       MotionEvent.ACTION_CANCEL -> {
 
-                          leftPressed = false
-                          rightPressed = false
-                          jumpPressed = false
+                          left = false
+                          right = false
 
                           return true
                       }
@@ -774,114 +571,69 @@ jobs:
 
                   return true
               }
-
-              private fun handleTouch(x: Float, y: Float) {
-
-                  val screenHeight = height.toFloat()
-                  val screenWidth = width.toFloat()
-
-                  // Joystick
-                  if (x < screenWidth * 0.30f &&
-                      y > screenHeight * 0.65f
-                  ) {
-
-                      if (x < 120f) {
-                          leftPressed = true
-                          rightPressed = false
-                      } else {
-                          rightPressed = true
-                          leftPressed = false
-                      }
-
-                      return
-                  }
-
-                  // FIRE
-                  if (
-                      x > screenWidth - 190f &&
-                      y > screenHeight - 230f
-                  ) {
-
-                      firePressed = true
-                      return
-                  }
-
-                  // JUMP
-                  if (
-                      x > screenWidth - 310f &&
-                      x < screenWidth - 190f &&
-                      y > screenHeight - 180f
-                  ) {
-
-                      jumpPressed = true
-                      return
-                  }
-
-                  // WEAPON SWITCH
-                  if (
-                      x > screenWidth - 400f &&
-                      x < screenWidth - 300f &&
-                      y > screenHeight - 220f
-                  ) {
-
-                      weaponIndex++
-
-                      if (weaponIndex >= weaponNames.size) {
-                          weaponIndex = 0
-                      }
-
-                      return
-                  }
-              }
-
-              private data class Projectile(
-                  var x: Float,
-                  var y: Float,
-                  var vx: Float,
-                  var vy: Float,
-                  var life: Float
-              )
           }
           EOF
 
-      # ============================================================
-      # 6. Create Gradle Wrapper
-      # ============================================================
-      - name: Install Gradle
+      # ==========================================
+      # 6. Install Gradle
+      # ==========================================
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
+      # ==========================================
+      # 7. Generate Gradle Wrapper
+      # ==========================================
       - name: Generate Gradle Wrapper
         shell: bash
         run: |
-          gradle wrapper --gradle-version 8.9 --distribution-type bin
+          set -e
 
-      # ============================================================
-      # 7. Build Debug APK
-      # ============================================================
+          gradle wrapper \
+            --gradle-version 8.9 \
+            --distribution-type bin
+
+          chmod +x ./gradlew
+
+      # ==========================================
+      # 8. Verify project
+      # ==========================================
+      - name: Verify Gradle
+        shell: bash
+        run: |
+          ./gradlew --version
+
+      # ==========================================
+      # 9. Build APK
+      # ==========================================
       - name: Build Debug APK
         shell: bash
         run: |
-          chmod +x ./gradlew
+          set -e
+
           ./gradlew clean assembleDebug --stacktrace
 
-      # ============================================================
-      # 8. Rename APK
-      # ============================================================
+      # ==========================================
+      # 10. Prepare APK
+      # ==========================================
       - name: Prepare APK
         shell: bash
         run: |
-          mkdir -p release
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             release/Zanqawi-debug.apk
+          set -e
 
-      # ============================================================
-      # 9. Upload APK
-      # ============================================================
-      - name: Upload Zanqawi APK
+          mkdir -p release
+
+          cp \
+            app/build/outputs/apk/debug/app-debug.apk \
+            release/Zanqawi.apk
+
+      # ==========================================
+      # 11. Upload APK
+      # ==========================================
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Zanqawi-APK
-          path: release/Zanqawi-debug.apk
+          path: release/Zanqawi.apk
           if-no-files-found: error
