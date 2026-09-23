@@ -1,4 +1,4 @@
-name: Build Zangaoui Pure Kotlin Game
+name: Build Zangaoui Game
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Setup JDK 17
@@ -15,18 +15,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # إعداد بيئة Gradle الرسمية للتعامل مع بناء APK
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Accept Android Licenses
+        run: |
+          yes | sdkmanager --licenses || true
 
-      - name: Generate Kotlin Project Structure
+      - name: Generate Android Project Structure
         run: |
           mkdir -p app/src/main/java/com/zangaoui/game
           mkdir -p app/src/main/res/values
 
-      - name: Create Gradle Files
+      - name: Write Gradle Settings & Config
         run: |
-          cat << 'EOF' > settings.gradle.kts
+          cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
                   google()
@@ -35,64 +35,84 @@ jobs:
               }
           }
           dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
               repositories {
                   google()
                   mavenCentral()
               }
           }
           rootProject.name = "Zangaoui"
-          include(":app")
+          include ':app'
           EOF
 
-          cat << 'EOF' > build.gradle.kts
-          plugins {
-              id("com.android.application") version "8.2.2" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
-          }
-          EOF
-
-          cat << 'EOF' > app/build.gradle.kts
-          plugins {
-              id("com.android.application")
-              id("org.jetbrains.kotlin.android")
-          }
-          android {
-              namespace = "com.zangaoui.game"
-              compileSdk = 34
-              defaultConfig {
-                  applicationId = "com.zangaoui.game"
-                  minSdk = 21
-                  targetSdk = 34
-                  versionCode = 1
-                  versionName = "1.0"
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
               }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+                  classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/build.gradle
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
+
+          android {
+              namespace 'com.zangaoui.game'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.zangaoui.game"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
               compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
               }
               kotlinOptions {
-                  jvmTarget = "17"
+                  jvmTarget = '17'
               }
           }
+
           dependencies {
-              implementation("androidx.core:core-ktx:1.12.0")
-              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
           }
           EOF
 
-      - name: Create AndroidManifest.xml
+      - name: Create Strings and Manifest
         run: |
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">زنقاوي</string>
+          </resources>
+          EOF
+
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
               <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
               <application
                   android:allowBackup="true"
-                  android:label="زنقاوي - Zangaoui"
+                  android:label="@string/app_name"
                   android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
                   <activity
                       android:name=".MainActivity"
@@ -107,7 +127,7 @@ jobs:
           </manifest>
           EOF
 
-      - name: Create Full Kotlin Game Code (MainActivity.kt)
+      - name: Write Game Logic in Kotlin
         run: |
           cat << 'EOF' > app/src/main/java/com/zangaoui/game/MainActivity.kt
           package com.zangaoui.game
@@ -124,11 +144,11 @@ jobs:
           import java.net.InetAddress
           import kotlin.math.*
 
-          enum class WeaponType(val damage: Int, val speed: Float, val isMelee: Boolean) {
-              STONE(25, 28f, false),
-              BRICK(50, 18f, false),
-              PAN(40, 0f, true),
-              BIDON(30, 15f, false)
+          enum class WeaponType(val damage: Int, val speed: Float) {
+              STONE(25, 28f),
+              BRICK(50, 18f),
+              PAN(40, 0f),
+              BIDON(30, 15f)
           }
 
           data class Projectile(
@@ -141,7 +161,7 @@ jobs:
               var id: Int, var name: String,
               var x: Float, var y: Float,
               var angle: Float, var health: Int,
-              var kills: Int, var isAlive: Boolean = true
+              var kills: Int
           )
 
           class MainActivity : Activity() {
@@ -185,17 +205,13 @@ jobs:
               private var rightStickKnob = PointF(1700f, 750f)
               private var leftStickActive = false
               private var rightStickActive = false
-
               private var walkCycle = 0f
+
               private var socket: DatagramSocket? = null
               private val PORT = 8888
 
               init {
                   holder.addCallback(this)
-                  setupNetworking()
-              }
-
-              private fun setupNetworking() {
                   Thread {
                       try {
                           socket = DatagramSocket(PORT)
@@ -204,13 +220,13 @@ jobs:
                               val packet = DatagramPacket(buffer, buffer.size)
                               socket?.receive(packet)
                               val msg = String(packet.data, 0, packet.length)
-                              parseNetworkPacket(msg)
+                              parsePacket(msg)
                           }
                       } catch (e: Exception) {}
                   }.start()
               }
 
-              private fun sendBroadcastPacket(msg: String) {
+              private fun sendBroadcast(msg: String) {
                   Thread {
                       try {
                           val ds = DatagramSocket()
@@ -223,7 +239,7 @@ jobs:
                   }.start()
               }
 
-              private fun parseNetworkPacket(msg: String) {
+              private fun parsePacket(msg: String) {
                   val parts = msg.split(";")
                   if (parts.size >= 7 && parts[0] == "SYNC") {
                       val id = parts[1].toInt()
@@ -244,13 +260,13 @@ jobs:
 
               override fun run() {
                   while (isRunning) {
-                      updatePhysics()
-                      drawCanvas()
+                      updateGame()
+                      renderGame()
                       try { Thread.sleep(16) } catch (e: Exception) {}
                   }
               }
 
-              private fun updatePhysics() {
+              private fun updateGame() {
                   myVy += 1.2f
                   if (leftStickActive) {
                       val dx = leftStickKnob.x - leftStickCenter.x
@@ -268,7 +284,6 @@ jobs:
 
                   myX += myVx
                   myY += myVy
-
                   if (myY > 850f) { myY = 850f; myVy = 0f }
                   if (myX < 50f) myX = 50f
                   if (myX > 1870f) myX = 1870f
@@ -291,37 +306,20 @@ jobs:
                       }
                       if (p.y > 900 || p.x < 0 || p.x > 1920) it.remove()
                   }
-
-                  sendBroadcastPacket("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
+                  sendBroadcast("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
               }
 
-              private fun drawCanvas() {
+              private fun renderGame() {
                   if (!holder.surface.isValid) return
                   val canvas = holder.lockCanvas() ?: return
 
-                  drawMapBackground(canvas)
-
-                  for (p in players.values) {
-                      drawZangaouiCharacter(canvas, p.x, p.y, p.angle, p.name, false, p.kills)
-                  }
-
-                  drawZangaouiCharacter(canvas, myX, myY, myAngle, playerName, true, myKills)
-                  drawProjectiles(canvas)
-                  drawUI(canvas)
-
-                  holder.unlockCanvasAndPost(canvas)
-              }
-
-              private fun drawMapBackground(canvas: Canvas) {
+                  // 1. الخريطة
                   when (currentMap) {
                       0 -> {
                           canvas.drawColor(Color.rgb(180, 200, 220))
                           paint.color = Color.rgb(120, 110, 100)
                           canvas.drawRect(100f, 200f, 600f, 900f, paint)
                           canvas.drawRect(800f, 150f, 1300f, 900f, paint)
-                          paint.color = Color.DKGRAY
-                          canvas.drawRect(150f, 400f, 550f, 420f, paint)
-                          canvas.drawRect(850f, 350f, 1250f, 370f, paint)
                       }
                       1 -> {
                           canvas.drawColor(Color.rgb(230, 210, 170))
@@ -334,73 +332,24 @@ jobs:
                           paint.color = Color.rgb(34, 139, 34)
                           canvas.drawCircle(300f, 600f, 180f, paint)
                           canvas.drawCircle(900f, 500f, 220f, paint)
-                          canvas.drawCircle(1500f, 650f, 190f, paint)
                       }
                   }
-                  paint.color = Color.rgb(60, 60, 60)
+                  paint.color = Color.DKGRAY
                   canvas.drawRect(0f, 880f, 1920f, 1080f, paint)
-              }
 
-              private fun drawZangaouiCharacter(c: Canvas, x: Float, y: Float, angle: Float, name: String, isLocal: Boolean, kills: Int) {
-                  c.save()
-                  c.translate(x, y)
-
-                  paint.color = Color.BLUE
-                  paint.strokeWidth = 10f
-                  val legSwing = if (abs(myVx) > 0.5f) sin(walkCycle) * 25f else 0f
-                  c.drawLine(-15f, 20f, -25f + legSwing, 55f, paint)
-                  c.drawLine(15f, 20f, 25f - legSwing, 55f, paint)
-
-                  paint.color = if (isLocal) Color.rgb(220, 50, 50) else Color.rgb(50, 120, 220)
-                  c.drawRoundRect(RectF(-25f, -30f, 25f, 25f), 12f, 12f, paint)
-
-                  paint.color = Color.rgb(255, 218, 185)
-                  c.drawCircle(0f, -55f, 22f, paint)
-                  paint.color = Color.BLACK
-                  c.drawRect(-12f, -48f, 12f, -42f, paint)
-                  paint.color = Color.WHITE
-                  c.drawCircle(-8f, -60f, 6f, paint)
-                  c.drawCircle(8f, -60f, 6f, paint)
-                  paint.color = Color.BLACK
-                  c.drawCircle(-8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
-                  c.drawCircle(8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
-
-                  c.save()
-                  c.rotate(Math.toDegrees(angle.toDouble()).toFloat())
-                  paint.color = Color.rgb(255, 218, 185)
-                  c.drawRect(0f, -6f, 35f, 6f, paint)
-                  drawWeaponInHand(c, 38f, 0f, selectedWeapon)
-                  c.restore()
-
-                  paint.textSize = 24f
-                  paint.color = Color.YELLOW
-                  paint.textAlign = Paint.Align.CENTER
-                  c.drawText("$name ($kills 💀)", 0f, -90f, paint)
-
-                  c.restore()
-              }
-
-              private fun drawWeaponInHand(c: Canvas, wx: Float, wy: Float, weapon: WeaponType) {
-                  when (weapon) {
-                      WeaponType.STONE -> { paint.color = Color.GRAY; c.drawCircle(wx, wy, 10f, paint) }
-                      WeaponType.BRICK -> { paint.color = Color.rgb(180, 50, 30); c.drawRect(wx - 8f, wy - 6f, wx + 16f, wy + 6f, paint) }
-                      WeaponType.PAN -> { paint.color = Color.BLACK; c.drawCircle(wx + 10f, wy, 14f, paint); c.drawLine(wx - 5f, wy, wx + 5f, wy, paint) }
-                      WeaponType.BIDON -> { paint.color = Color.rgb(30, 144, 255); c.drawRect(wx - 10f, wy - 14f, wx + 10f, wy + 14f, paint) }
+                  // 2. الشخصيات
+                  for (p in players.values) {
+                      drawPlayer(canvas, p.x, p.y, p.angle, p.name, false, p.kills)
                   }
-              }
+                  drawPlayer(canvas, myX, myY, myAngle, playerName, true, myKills)
 
-              private fun drawProjectiles(canvas: Canvas) {
+                  // 3. المقذوفات
                   for (p in projectiles) {
-                      when (p.type) {
-                          WeaponType.STONE -> { paint.color = Color.GRAY; canvas.drawCircle(p.x, p.y, 10f, paint) }
-                          WeaponType.BRICK -> { paint.color = Color.rgb(180, 50, 30); canvas.drawRect(p.x - 12f, p.y - 7f, p.x + 12f, p.y + 7f, paint) }
-                          WeaponType.BIDON -> { paint.color = Color.BLUE; canvas.drawRect(p.x - 15f, p.y - 15f, p.x + 15f, p.y + 15f, paint) }
-                          else -> {}
-                      }
+                      paint.color = if (p.type == WeaponType.BRICK) Color.RED else Color.GRAY
+                      canvas.drawCircle(p.x, p.y, 10f, paint)
                   }
-              }
 
-              private fun drawUI(canvas: Canvas) {
+                  // 4. أزرار ميني ميليتيا Joysticks
                   paint.color = Color.argb(80, 255, 255, 255)
                   canvas.drawCircle(leftStickCenter.x, leftStickCenter.y, 120f, paint)
                   canvas.drawCircle(rightStickCenter.x, rightStickCenter.y, 120f, paint)
@@ -408,39 +357,55 @@ jobs:
                   canvas.drawCircle(leftStickKnob.x, leftStickKnob.y, 50f, paint)
                   canvas.drawCircle(rightStickKnob.x, rightStickKnob.y, 50f, paint)
 
-                  paint.color = Color.RED
-                  canvas.drawRect(60f, 40f, 60f + (myHealth * 3f), 65f, paint)
-                  paint.color = Color.YELLOW
-                  canvas.drawRect(60f, 75f, 60f + (jetpackFuel * 3f), 95f, paint)
-
+                  // 5. الترتيب (Classement)
                   paint.color = Color.argb(160, 0, 0, 0)
-                  canvas.drawRoundRect(1400f, 30f, 1880f, 220f, 15f, 15f, paint)
+                  canvas.drawRoundRect(RectF(1400f, 30f, 1880f, 220f), 15f, 15f, paint)
                   paint.color = Color.WHITE
                   paint.textSize = 28f
-                  paint.textAlign = Paint.Align.LEFT
-                  canvas.drawText("🏆 الترتيب (Classement):", 1420f, 65f, paint)
-
-                  val allPlayers = ArrayList(players.values)
-                  allPlayers.add(PlayerData(myId, playerName, myX, myY, myAngle, myHealth, myKills))
-                  allPlayers.sortByDescending { it.kills }
-
-                  var yOffset = 105f
-                  for ((rank, p) in allPlayers.withIndex()) {
-                      if (rank < 4) {
-                          paint.color = if (p.id == myId) Color.GREEN else Color.WHITE
-                          canvas.drawText("#${rank + 1} ${p.name} - ${p.kills} قتلى", 1430f, yOffset, paint)
-                          yOffset += 32f
-                      }
-                  }
+                  canvas.drawText("الترتيب:", 1420f, 65f, paint)
+                  canvas.drawText("#1 $playerName - $myKills قتلى", 1430f, 110f, paint)
 
                   paint.color = Color.CYAN
                   paint.textSize = 26f
-                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (اضغط لتغييرها)", 750f, 60f, paint)
+                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (المس هنا للتغيير)", 750f, 60f, paint)
+
+                  holder.unlockCanvasAndPost(canvas)
+              }
+
+              private fun drawPlayer(c: Canvas, x: Float, y: Float, angle: Float, name: String, isLocal: Boolean, kills: Int) {
+                  c.save()
+                  c.translate(x, y)
+
+                  paint.color = Color.BLUE
+                  paint.strokeWidth = 10f
+                  val leg = if (abs(myVx) > 0.5f) sin(walkCycle) * 25f else 0f
+                  c.drawLine(-15f, 20f, -25f + leg, 55f, paint)
+                  c.drawLine(15f, 20f, 25f - leg, 55f, paint)
+
+                  paint.color = if (isLocal) Color.RED else Color.GREEN
+                  c.drawRoundRect(RectF(-25f, -30f, 25f, 25f), 12f, 12f, paint)
+                  paint.color = Color.rgb(255, 218, 185)
+                  c.drawCircle(0f, -55f, 22f, paint)
+                  paint.color = Color.BLACK
+                  c.drawRect(-12f, -48f, 12f, -42f, paint)
+
+                  c.save()
+                  c.rotate(Math.toDegrees(angle.toDouble()).toFloat())
+                  paint.color = Color.rgb(255, 218, 185)
+                  c.drawRect(0f, -6f, 35f, 6f, paint)
+                  paint.color = Color.GRAY
+                  c.drawCircle(40f, 0f, 10f, paint)
+                  c.restore()
+
+                  paint.textSize = 24f
+                  paint.color = Color.YELLOW
+                  paint.textAlign = Paint.Align.CENTER
+                  c.drawText("$name ($kills)", 0f, -90f, paint)
+                  c.restore()
               }
 
               override fun onTouchEvent(event: MotionEvent): Boolean {
-                  val count = event.pointerCount
-                  for (i in 0 until count) {
+                  for (i in 0 until event.pointerCount) {
                       val x = event.getX(i)
                       val y = event.getY(i)
                       val action = event.actionMasked
@@ -452,36 +417,30 @@ jobs:
 
                       if (x < 960) {
                           if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
-                              leftStickKnob.set(leftStickCenter)
+                              leftStickKnob.set(leftStickCenter.x, leftStickCenter.y)
                               leftStickActive = false
                           } else {
                               leftStickActive = true
-                              val dist = hypot(x - leftStickCenter.x, y - leftStickCenter.y)
-                              if (dist < 150) leftStickKnob.set(x, y)
+                              leftStickKnob.set(x, y)
                           }
                       } else {
                           if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
-                              if (rightStickActive) fireWeapon()
-                              rightStickKnob.set(rightStickCenter)
+                              if (rightStickActive) {
+                                  val vx = cos(myAngle) * selectedWeapon.speed
+                                  val vy = sin(myAngle) * selectedWeapon.speed
+                                  projectiles.add(Projectile(myX, myY - 20, vx, vy, selectedWeapon, myId))
+                                  sendBroadcast("FIRE;$myId;$myX;${myY - 20};${selectedWeapon.name};$vx;$vy")
+                              }
+                              rightStickKnob.set(rightStickCenter.x, rightStickCenter.y)
                               rightStickActive = false
                           } else {
                               rightStickActive = true
-                              val dx = x - rightStickCenter.x
-                              val dy = y - rightStickCenter.y
-                              myAngle = atan2(dy, dx)
+                              myAngle = atan2(y - rightStickCenter.y, x - rightStickCenter.x)
                               rightStickKnob.set(x, y)
                           }
                       }
                   }
                   return true
-              }
-
-              private fun fireWeapon() {
-                  val vx = cos(myAngle) * selectedWeapon.speed
-                  val vy = sin(myAngle) * selectedWeapon.speed
-                  val p = Projectile(myX, myY - 20, vx, vy, selectedWeapon, myId)
-                  projectiles.add(p)
-                  sendBroadcastPacket("FIRE;$myId;${myX};${myY - 20};${selectedWeapon.name};$vx;$vy")
               }
 
               fun resume() { isRunning = true; gameThread = Thread(this); gameThread?.start() }
@@ -492,9 +451,11 @@ jobs:
           }
           EOF
 
-      - name: Build Android APK
+      - name: Build APK with Gradle Wrapper
         run: |
-          gradle assembleDebug --stacktrace
+          gradle wrapper --gradle-version 8.5
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
