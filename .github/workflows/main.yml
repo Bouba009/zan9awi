@@ -15,8 +15,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # إعداد بيئة Gradle الرسمية للتعامل مع بناء APK
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Kotlin Project Structure
         run: |
@@ -123,22 +124,19 @@ jobs:
           import java.net.InetAddress
           import kotlin.math.*
 
-          // بيانات السلاح
           enum class WeaponType(val damage: Int, val speed: Float, val isMelee: Boolean) {
-              STONE(25, 28f, false),      // حجر
-              BRICK(50, 18f, false),      // آجور
-              PAN(40, 0f, true),          // مقلاة
-              BIDON(30, 15f, false)       // بيدون
+              STONE(25, 28f, false),
+              BRICK(50, 18f, false),
+              PAN(40, 0f, true),
+              BIDON(30, 15f, false)
           }
 
-          // كائن المقذوفات
           data class Projectile(
               var x: Float, var y: Float,
               var vx: Float, var vy: Float,
               val type: WeaponType, val shooterId: Int
           )
 
-          // بيانات أي لاعب في الغرفة
           data class PlayerData(
               var id: Int, var name: String,
               var x: Float, var y: Float,
@@ -164,7 +162,6 @@ jobs:
               @Volatile private var isRunning = false
               private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-              // بيانات اللاعب المحلي
               private val myId = (1000..9999).random()
               private var playerName = "زنقاوي"
               private var myX = 300f
@@ -176,14 +173,12 @@ jobs:
               private var myKills = 0
               private var jetpackFuel = 100f
               private var selectedWeapon = WeaponType.STONE
-              private var currentMap = 0 // 0: 105 مسكن, 1: قرية ZH, 2: غابة المقام
+              private var currentMap = 0
               private val mapNames = arrayOf("العمارات 105 مسكن", "ZH قرية قديمة", "غابة المقام")
 
-              // قائمة اللاعبين والمقذوفات
               private val players = HashMap<Int, PlayerData>()
               private val projectiles = ArrayList<Projectile>()
 
-              // أزرار التحكم الافتراضية (Dual Joysticks - ميني ميليتيا)
               private val leftStickCenter = PointF(220f, 750f)
               private val rightStickCenter = PointF(1700f, 750f)
               private var leftStickKnob = PointF(220f, 750f)
@@ -191,10 +186,7 @@ jobs:
               private var leftStickActive = false
               private var rightStickActive = false
 
-              // أنيميشن المشي
               private var walkCycle = 0f
-
-              // شبكة الويفي عبر UDP
               private var socket: DatagramSocket? = null
               private val PORT = 8888
 
@@ -214,7 +206,7 @@ jobs:
                               val msg = String(packet.data, 0, packet.length)
                               parseNetworkPacket(msg)
                           }
-                      } catch (e: Exception) { e.printStackTrace() }
+                      } catch (e: Exception) {}
                   }.start()
               }
 
@@ -224,7 +216,6 @@ jobs:
                           val ds = DatagramSocket()
                           ds.broadcast = true
                           val data = msg.toByteArray()
-                          // بث للشبكة المحلية Hotspot
                           val packet = DatagramPacket(data, data.size, InetAddress.getByName("255.255.255.255"), PORT)
                           ds.send(packet)
                           ds.close()
@@ -260,13 +251,12 @@ jobs:
               }
 
               private fun updatePhysics() {
-                  // فيزياء الجاذبية والطيران (Jetpack)
-                  myVy += 1.2f // جاذبية
+                  myVy += 1.2f
                   if (leftStickActive) {
                       val dx = leftStickKnob.x - leftStickCenter.x
                       val dy = leftStickKnob.y - leftStickCenter.y
                       myVx = (dx / 100f) * 12f
-                      if (dy < -30 && jetpackFuel > 0) { // طيران
+                      if (dy < -30 && jetpackFuel > 0) {
                           myVy = -14f
                           jetpackFuel -= 0.6f
                       }
@@ -279,20 +269,17 @@ jobs:
                   myX += myVx
                   myY += myVy
 
-                  // حدود الأرضية
                   if (myY > 850f) { myY = 850f; myVy = 0f }
                   if (myX < 50f) myX = 50f
                   if (myX > 1870f) myX = 1870f
 
-                  // تحديث المقذوفات
                   val it = projectiles.iterator()
                   while (it.hasNext()) {
                       val p = it.next()
                       p.x += p.vx
                       p.y += p.vy
-                      p.vy += 0.5f // جاذبية الحجر والآجور
+                      p.vy += 0.5f
 
-                      // اصطدام مع اللاعب المحلي
                       if (p.shooterId != myId && abs(p.x - myX) < 40 && abs(p.y - myY) < 60) {
                           myHealth -= p.type.damage
                           it.remove()
@@ -305,7 +292,6 @@ jobs:
                       if (p.y > 900 || p.x < 0 || p.x > 1920) it.remove()
                   }
 
-                  // إرسال موقع اللاعب عبر الويفي كل بضع إطارات
                   sendBroadcastPacket("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
               }
 
@@ -313,21 +299,14 @@ jobs:
                   if (!holder.surface.isValid) return
                   val canvas = holder.lockCanvas() ?: return
 
-                  // 1. رسم خلفية الخريطة
                   drawMapBackground(canvas)
 
-                  // 2. رسم اللاعبين الآخرين
                   for (p in players.values) {
                       drawZangaouiCharacter(canvas, p.x, p.y, p.angle, p.name, false, p.kills)
                   }
 
-                  // 3. رسم اللاعب المحلي
                   drawZangaouiCharacter(canvas, myX, myY, myAngle, playerName, true, myKills)
-
-                  // 4. رسم المقذوفات (الحجر، الآجور...)
                   drawProjectiles(canvas)
-
-                  // 5. رسم واجهة المستخدم وأزرار الـ Mini Militia
                   drawUI(canvas)
 
                   holder.unlockCanvasAndPost(canvas)
@@ -335,56 +314,50 @@ jobs:
 
               private fun drawMapBackground(canvas: Canvas) {
                   when (currentMap) {
-                      0 -> { // العمارات 105 مسكن
-                          canvas.drawColor(Color.rgb(180, 200, 220)) // سماء
-                          paint.color = Color.rgb(120, 110, 100) // عمارات إسمنتية
+                      0 -> {
+                          canvas.drawColor(Color.rgb(180, 200, 220))
+                          paint.color = Color.rgb(120, 110, 100)
                           canvas.drawRect(100f, 200f, 600f, 900f, paint)
                           canvas.drawRect(800f, 150f, 1300f, 900f, paint)
-                          paint.color = Color.DKGRAY // شرفات
+                          paint.color = Color.DKGRAY
                           canvas.drawRect(150f, 400f, 550f, 420f, paint)
                           canvas.drawRect(850f, 350f, 1250f, 370f, paint)
                       }
-                      1 -> { // ZH قرية قديمة
+                      1 -> {
                           canvas.drawColor(Color.rgb(230, 210, 170))
-                          paint.color = Color.rgb(160, 82, 45) // جدران الطين والآجور
+                          paint.color = Color.rgb(160, 82, 45)
                           canvas.drawRect(0f, 500f, 500f, 900f, paint)
                           canvas.drawRect(700f, 450f, 1200f, 900f, paint)
                       }
-                      2 -> { // غابة المقام
+                      2 -> {
                           canvas.drawColor(Color.rgb(135, 206, 235))
-                          paint.color = Color.rgb(34, 139, 34) // أشجار
+                          paint.color = Color.rgb(34, 139, 34)
                           canvas.drawCircle(300f, 600f, 180f, paint)
                           canvas.drawCircle(900f, 500f, 220f, paint)
                           canvas.drawCircle(1500f, 650f, 190f, paint)
                       }
                   }
-                  // أرضية
                   paint.color = Color.rgb(60, 60, 60)
                   canvas.drawRect(0f, 880f, 1920f, 1080f, paint)
               }
 
-              // رسم الشخصية بطابع زنقاوي كوميدي
               private fun drawZangaouiCharacter(c: Canvas, x: Float, y: Float, angle: Float, name: String, isLocal: Boolean, kills: Int) {
                   c.save()
                   c.translate(x, y)
 
-                  // الأرجل (أنيميشن مشي واقعي مضحك)
                   paint.color = Color.BLUE
                   paint.strokeWidth = 10f
                   val legSwing = if (abs(myVx) > 0.5f) sin(walkCycle) * 25f else 0f
                   c.drawLine(-15f, 20f, -25f + legSwing, 55f, paint)
                   c.drawLine(15f, 20f, 25f - legSwing, 55f, paint)
 
-                  // الجسد
                   paint.color = if (isLocal) Color.rgb(220, 50, 50) else Color.rgb(50, 120, 220)
                   c.drawRoundRect(RectF(-25f, -30f, 25f, 25f), 12f, 12f, paint)
 
-                  // الرأس المضحك والشارب والشنب الجزائري
                   paint.color = Color.rgb(255, 218, 185)
                   c.drawCircle(0f, -55f, 22f, paint)
-                  paint.color = Color.BLACK // شلاغم (شارب مضحك)
+                  paint.color = Color.BLACK
                   c.drawRect(-12f, -48f, 12f, -42f, paint)
-                  // أعين مضحكة تنظر باتجاه التصويب
                   paint.color = Color.WHITE
                   c.drawCircle(-8f, -60f, 6f, paint)
                   c.drawCircle(8f, -60f, 6f, paint)
@@ -392,15 +365,13 @@ jobs:
                   c.drawCircle(-8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
                   c.drawCircle(8f + cos(angle)*2, -60f + sin(angle)*2, 3f, paint)
 
-                  // الذراع والسلاح (حجر / مقلاة / آجور)
                   c.save()
                   c.rotate(Math.toDegrees(angle.toDouble()).toFloat())
                   paint.color = Color.rgb(255, 218, 185)
-                  c.drawRect(0f, -6f, 35f, 6f, paint) // ذراع ممتدة
+                  c.drawRect(0f, -6f, 35f, 6f, paint)
                   drawWeaponInHand(c, 38f, 0f, selectedWeapon)
                   c.restore()
 
-                  // الاسم وشريط الحياة
                   paint.textSize = 24f
                   paint.color = Color.YELLOW
                   paint.textAlign = Paint.Align.CENTER
@@ -411,23 +382,10 @@ jobs:
 
               private fun drawWeaponInHand(c: Canvas, wx: Float, wy: Float, weapon: WeaponType) {
                   when (weapon) {
-                      WeaponType.STONE -> {
-                          paint.color = Color.GRAY
-                          c.drawCircle(wx, wy, 10f, paint) // حجر
-                      }
-                      WeaponType.BRICK -> {
-                          paint.color = Color.rgb(180, 50, 30) // آجورة حمراء
-                          c.drawRect(wx - 8f, wy - 6f, wx + 16f, wy + 6f, paint)
-                      }
-                      WeaponType.PAN -> {
-                          paint.color = Color.BLACK // مقلاة
-                          c.drawCircle(wx + 10f, wy, 14f, paint)
-                          c.drawLine(wx - 5f, wy, wx + 5f, wy, paint)
-                      }
-                      WeaponType.BIDON -> {
-                          paint.color = Color.rgb(30, 144, 255) // بيدون أزرق
-                          c.drawRect(wx - 10f, wy - 14f, wx + 10f, wy + 14f, paint)
-                      }
+                      WeaponType.STONE -> { paint.color = Color.GRAY; c.drawCircle(wx, wy, 10f, paint) }
+                      WeaponType.BRICK -> { paint.color = Color.rgb(180, 50, 30); c.drawRect(wx - 8f, wy - 6f, wx + 16f, wy + 6f, paint) }
+                      WeaponType.PAN -> { paint.color = Color.BLACK; c.drawCircle(wx + 10f, wy, 14f, paint); c.drawLine(wx - 5f, wy, wx + 5f, wy, paint) }
+                      WeaponType.BIDON -> { paint.color = Color.rgb(30, 144, 255); c.drawRect(wx - 10f, wy - 14f, wx + 10f, wy + 14f, paint) }
                   }
               }
 
@@ -443,7 +401,6 @@ jobs:
               }
 
               private fun drawUI(canvas: Canvas) {
-                  // رسم عصي التحكم Joysticks (مثل ميني ميليتيا)
                   paint.color = Color.argb(80, 255, 255, 255)
                   canvas.drawCircle(leftStickCenter.x, leftStickCenter.y, 120f, paint)
                   canvas.drawCircle(rightStickCenter.x, rightStickCenter.y, 120f, paint)
@@ -451,13 +408,11 @@ jobs:
                   canvas.drawCircle(leftStickKnob.x, leftStickKnob.y, 50f, paint)
                   canvas.drawCircle(rightStickKnob.x, rightStickKnob.y, 50f, paint)
 
-                  // شريط الحياة والبنزين (Jetpack)
                   paint.color = Color.RED
                   canvas.drawRect(60f, 40f, 60f + (myHealth * 3f), 65f, paint)
                   paint.color = Color.YELLOW
                   canvas.drawRect(60f, 75f, 60f + (jetpackFuel * 3f), 95f, paint)
 
-                  // لوحة الصدارة المباشرة (الترتيب - Classement)
                   paint.color = Color.argb(160, 0, 0, 0)
                   canvas.drawRoundRect(1400f, 30f, 1880f, 220f, 15f, 15f, paint)
                   paint.color = Color.WHITE
@@ -478,10 +433,9 @@ jobs:
                       }
                   }
 
-                  // اسم الخريطة الحالية
                   paint.color = Color.CYAN
                   paint.textSize = 26f
-                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (المس هنا للتغيير)", 750f, 60f, paint)
+                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (اضغط لتغييرها)", 750f, 60f, paint)
               }
 
               override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -491,13 +445,11 @@ jobs:
                       val y = event.getY(i)
                       val action = event.actionMasked
 
-                      // تغيير الخريطة عند لمس العنوان
                       if (action == MotionEvent.ACTION_DOWN && y < 100 && x in 700f..1300f) {
                           currentMap = (currentMap + 1) % 3
                           return true
                       }
 
-                      // التحكم الأيسر (حركة وطيران)
                       if (x < 960) {
                           if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
                               leftStickKnob.set(leftStickCenter)
@@ -507,11 +459,8 @@ jobs:
                               val dist = hypot(x - leftStickCenter.x, y - leftStickCenter.y)
                               if (dist < 150) leftStickKnob.set(x, y)
                           }
-                      }
-                      // التحكم الأيمن (تصويب ورمي الحجر / المقلاة)
-                      else {
+                      } else {
                           if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP) {
-                              // عند الإفلات: رمي السلاح
                               if (rightStickActive) fireWeapon()
                               rightStickKnob.set(rightStickCenter)
                               rightStickActive = false
@@ -532,7 +481,6 @@ jobs:
                   val vy = sin(myAngle) * selectedWeapon.speed
                   val p = Projectile(myX, myY - 20, vx, vy, selectedWeapon, myId)
                   projectiles.add(p)
-                  // إرسال طلقة المقذوف للأصدقاء بالويفي
                   sendBroadcastPacket("FIRE;$myId;${myX};${myY - 20};${selectedWeapon.name};$vx;$vy")
               }
 
@@ -544,10 +492,9 @@ jobs:
           }
           EOF
 
-      - name: Build Android APK with Gradle
+      - name: Build Android APK
         run: |
-          gradle wrapper
-          ./gradlew assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
