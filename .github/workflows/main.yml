@@ -15,54 +15,44 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # تثبيت إصدار Gradle 8.5 المستقر مباشرة
-      - name: Setup Gradle 8.5
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.5'
-
       - name: Accept Android Licenses
         run: |
           yes | sdkmanager --licenses || true
 
-      - name: Generate Android Project Structure
+      - name: Generate Clean Project Structure
         run: |
           mkdir -p app/src/main/java/com/zangaoui/game
           mkdir -p app/src/main/res/values
 
-      - name: Write Gradle Settings & Config (Clean DSL)
+      - name: Setup Gradle Files
         run: |
           cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
           rootProject.name = "Zangaoui"
           include ':app'
           EOF
 
           cat << 'EOF' > build.gradle
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+                  classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
           EOF
 
           cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
 
           android {
               namespace 'com.zangaoui.game'
@@ -84,14 +74,9 @@ jobs:
                   jvmTarget = '17'
               }
           }
-
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-          }
           EOF
 
-      - name: Create Strings and Manifest
+      - name: Setup Manifest and Resources
         run: |
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
@@ -123,7 +108,7 @@ jobs:
           </manifest>
           EOF
 
-      - name: Write Game Logic in Kotlin
+      - name: Write Standalone Kotlin Game Code
         run: |
           cat << 'EOF' > app/src/main/java/com/zangaoui/game/MainActivity.kt
           package com.zangaoui.game
@@ -291,20 +276,16 @@ jobs:
                       p.y += p.vy
                       p.vy += 0.5f
 
-                      var hit = false
                       if (p.shooterId != myId && abs(p.x - myX) < 40 && abs(p.y - myY) < 60) {
                           myHealth -= p.type.damage
                           it.remove()
-                          hit = true
                           if (myHealth <= 0) {
                               myHealth = 100
                               myX = (200..1600).random().toFloat()
                               myY = 300f
                           }
                       }
-                      if (!hit && (p.y > 900 || p.x < 0 || p.x > 1920)) {
-                          it.remove()
-                      }
+                      if (p.y > 900 || p.x < 0 || p.x > 1920) it.remove()
                   }
                   sendBroadcast("SYNC;$myId;$playerName;$myX;$myY;$myAngle;$myKills")
               }
@@ -362,7 +343,7 @@ jobs:
 
                   paint.color = Color.CYAN
                   paint.textSize = 26f
-                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (المس هنا للتغيير)", 750f, 60f, paint)
+                  canvas.drawText("الخريطة: ${mapNames[currentMap]} (المس للتغيير)", 750f, 60f, paint)
 
                   holder.unlockCanvasAndPost(canvas)
               }
@@ -446,11 +427,13 @@ jobs:
           }
           EOF
 
-      - name: Build Android APK
+      - name: Build APK Direct
         run: |
-          gradle assembleDebug --no-daemon
+          gradle wrapper --gradle-version 8.5
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Finished APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Zangaoui-Game-APK
